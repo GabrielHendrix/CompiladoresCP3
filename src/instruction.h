@@ -20,10 +20,17 @@ typedef enum {
     // Basic ops
     HALT,
     NOOP,
-
+    UPLUSi,
+    UMINUSi,
+    UPLUSf,
+    UMINUSf,
     // Arith ops
     ADDi,           // ADDi ix, iy, iz      ; ix <- iy + iz
     ADDf,           // ADDf fx, fy, fz      ; fx <- fy + fz
+    INCi,           // INCi ix, iy          ; ix <- iy + 1
+    INCf,           // INCi x, fy          ; fx <- fy + 1
+    DECi,           // DECi ix, iy          ; ix <- iy - 1
+    DECf,           // DECi fx, fy          ; fx <- fy - 1
     SUBi,           // SUBi ix, iy, iz      ; ix <- iy - iz
     SUBf,           // SUBf fx, fy, fz      ; fx <- fy - fz
     MULi,           // MULi ix, iy, iz      ; ix <- iy * iz
@@ -114,8 +121,8 @@ typedef enum {
 
 // String representations of opcodes.
 static char* OpStr[] = {
-    "HALT", "NOOP",
-    "ADDi", "ADDf", "SUBi", "SUBf", "MULi", "MULf", "DIVi", "DIVf", "MODi", "WIDf",
+    "HALT", "NOOP", "UPLUSi", "UMINUSi", "UPLUSf", "UMINUSf",
+    "ADDi", "ADDf", "INCi", "INCf", "DECi", "DECf", "SUBi", "SUBf", "MULi", "MULf", "DIVi", "DIVf", "MODi", "WIDf",
     "OROR", "ANDAND", "EQUi", "EQUf", "NEQUs", "NEQUi", "NEQUf", "NEQUs", "LTHi", "LTHf", "LTHs",
     "JUMP", "BOTb", "BOFb",
     "LDWi", "LDWf", "LDIi", "LDIf", "STWi", "STWf",
@@ -127,8 +134,16 @@ static char* OpStr[] = {
 static int OpCount[] = {
     0,  // HALT
     0,  // NOOP
+    3,  // UPLUSi
+    3,  // UMINUSi
+    3,  // UPLUSf
+    3,  // UMINUSf
     3,  // ADDi
     3,  // ADDf
+    3,  // INCi
+    3,  // INCf
+    3,  // DECi
+    3,  // DECf
     3,  // SUBi
     3,  // SUBf
     3,  // MULi

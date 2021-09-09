@@ -424,6 +424,70 @@ int emit_minus(AST *ast) {
     return x;
 }
 
+int emit_pre_inc(AST *ast) {
+    int x;
+    int y = rec_emit_code(get_child(ast, 0));
+    int addr = get_data(get_child(ast, 0));
+    if (get_node_type(ast) == REAL_TYPE) {
+        x = new_float_reg();
+        emit2(INCf, x, y);
+        emit2(STWf, addr, x);
+    } else {
+        x = new_int_reg();
+        emit2(INCi, x, y);
+        emit2(STWi, addr, x);
+    }
+    return x;
+}
+
+int emit_pre_dec(AST *ast) {
+    int x;
+    int y = rec_emit_code(get_child(ast, 0));
+    int addr = get_data(get_child(ast, 0));
+    if (get_node_type(ast) == REAL_TYPE) {
+        x = new_float_reg();
+        emit2(DECf, x, y);
+        emit2(STWf, addr, x);
+    } else {
+        x = new_int_reg();
+        emit2(DECi, x, y);
+        emit2(STWi, addr, x);
+    }
+    return x;
+}
+
+int emit_uplus(AST *ast) {
+    int x;
+    int y = rec_emit_code(get_child(ast, 0));
+    int addr = get_data(get_child(ast, 0));
+    if (get_node_type(ast) == REAL_TYPE) {
+        x = new_float_reg();
+        emit2(UPLUSf, x, y);
+        emit2(STWf, addr, x);
+    } else {
+        x = new_int_reg();
+        emit2(UPLUSi, x, y);
+        emit2(STWi, addr, x);
+    }
+    return x;
+}
+
+int emit_uminus(AST *ast) {
+    int x;
+    int y = rec_emit_code(get_child(ast, 0));
+    int addr = get_data(get_child(ast, 0));
+    if (get_node_type(ast) == REAL_TYPE) {
+        x = new_float_reg();
+        emit2(UMINUSf, x, y);
+        emit2(STWf, addr, x);
+    } else {
+        x = new_int_reg();
+        emit2(UMINUSi, x, y);
+        emit2(STWi, addr, x);
+    }
+    return x;
+}
+
 int emit_over(AST *ast) {
     int x;
     int y = rec_emit_code(get_child(ast, 0));
@@ -707,14 +771,14 @@ int rec_emit_code(AST *ast) {
         case PLUS_NODE:			return emit_plus(ast);        
         case AND_NODE:			return emit_and(ast);     
         case OR_NODE:			return emit_or(ast);          
-        //case POST_INC_NODE:     return emit_post_inc(ast);  
-        //case PRE_INC_NODE:		return emit_pre_inc(ast); 
-        //case POST_DEC_NODE:     return emit_post_dec(ast);  
-        //case PRE_DEC_NODE:		return emit_pre_dec(ast); 
+        // case POST_INC_NODE:     return emit_post_inc(ast);  
+        case PRE_INC_NODE:		return emit_pre_inc(ast); 
+        // case POST_DEC_NODE:     return emit_post_dec(ast);  
+        case PRE_DEC_NODE:		return emit_pre_dec(ast); 
         //case REF_NODE:			return emit_ref(ast);     
         //case DEREF_NODE:		return emit_dref(ast);        
-        //case UPLUS_NODE:		return emit_uplus(ast);       
-        //case UMINUS_NODE:		return emit_uminus(ast);      
+        // case UPLUS_NODE:		return emit_uplus(ast);       
+        // case UMINUS_NODE:		return emit_uminus(ast);      
         //case LNEG_NODE:			return emit_lneg(ast);    
         case PRINTF_NODE:       return emit_printf(ast);      
         case PROGRAM_NODE:		return emit_program(ast);     

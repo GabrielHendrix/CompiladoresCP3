@@ -4,21 +4,31 @@
 
 int main (int argc, char *argv[])
 {
-	char var[] = "asas safsaf %dsahgsagfdhgf";
-	char string[strlen(var)];
-	char *s;
-	memcpy(string, var, strlen(var));
-	if(strstr(var, "%d") != NULL)
+	int x = 10, a;
+	for (int i = 0; i <= 1; i++)
 	{
-		s =  strtok(var, "%");
+		a = x++;
+		printf("\na = %d\n", a);
+		printf("x = %d\n", x);
 
-		printf("%s\n", s);
-		s = strtok(NULL, "%");
-		char aux[strlen(s) - 1];
-		for (int c = 1; s[c] != '\0'; c++)
-			aux[c-1] = s[c];
-		printf("%s", aux);
+		printf("a = %d\n\n", a);
 	}
+	
+	// char var[] = "asas safsaf %dsahgsagfdhgf";
+	// char string[strlen(var)];
+	// char *s;
+	// memcpy(string, var, strlen(var));
+	// if(strstr(var, "%d") != NULL)
+	// {
+	// 	s =  strtok(var, "%");
+
+	// 	printf("%s\n", s);
+	// 	s = strtok(NULL, "%");
+	// 	char aux[strlen(s) - 1];
+	// 	for (int c = 1; s[c] != '\0'; c++)
+	// 		aux[c-1] = s[c];
+	// 	printf("%s", aux);
+	// }
 
 	
 	// printf("%s\n",  strstr(string, "%d"));

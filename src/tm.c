@@ -228,6 +228,54 @@ StepResult run_addi(Instr instr) {
     return OKAY;
 }
 
+StepResult run_uplusi(Instr instr) {
+    is[instr.o1] = is[instr.o2];
+    pc++;
+    return OKAY;
+}
+
+StepResult run_uplusf(Instr instr) {
+    fs[instr.o1] = fs[instr.o2];
+    pc++;
+    return OKAY;
+}
+
+StepResult run_uminusi(Instr instr) {
+    is[instr.o1] = - is[instr.o2];
+    pc++;
+    return OKAY;
+}
+
+StepResult run_uminusf(Instr instr) {
+    fs[instr.o1] = - fs[instr.o2];
+    pc++;
+    return OKAY;
+}
+
+StepResult run_inci(Instr instr) {
+    is[instr.o1] = is[instr.o2] + 1;
+    pc++;
+    return OKAY;
+}
+
+StepResult run_incf(Instr instr) {
+    fs[instr.o1] = fs[instr.o2] + 1;
+    pc++;
+    return OKAY;
+}
+
+StepResult run_deci(Instr instr) {
+    is[instr.o1] = is[instr.o2] - 1;
+    pc++;
+    return OKAY;
+}
+
+StepResult run_decf(Instr instr) {
+    fs[instr.o1] = fs[instr.o2] - 1;
+    pc++;
+    return OKAY;
+}
+
 StepResult run_addf(Instr instr) {
     fs[instr.o1] = fs[instr.o2] + fs[instr.o3];
     pc++;
@@ -561,8 +609,16 @@ StepResult step() {
     switch(instr.op) {
         case HALT: return run_halt(instr);
         case NOOP: return run_noop(instr);
+        case UPLUSi: return run_uplusi(instr);
+        case UMINUSi: return run_uminusi(instr);
+        case UPLUSf: return run_uplusf(instr);
+        case UMINUSf: return run_uminusf(instr);
         case ADDi: return run_addi(instr);
         case ADDf: return run_addf(instr);
+        case INCi: return run_inci(instr);
+        case INCf: return run_incf(instr);
+        case DECi: return run_deci(instr);
+        case DECf: return run_decf(instr);
         case SUBi: return run_subi(instr);
         case SUBf: return run_subf(instr);
         case MULi: return run_muli(instr);

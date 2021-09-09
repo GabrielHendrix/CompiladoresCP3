@@ -93,7 +93,9 @@ unary_expression:
 	  postfix_expression { $$ = $1; }
 	| INC_OP unary_expression { $$ = new_subtree (PRE_INC_NODE, get_AST_type ($2), 1, $2); }
 	| DEC_OP unary_expression { $$ = new_subtree (PRE_DEC_NODE, get_AST_type ($2), 1, $2); }
-	| unary_operator cast_expression { add_child ($1, $2); if (get_AST_type ($1) == NO_TYPE) set_AST_type ($1, get_AST_type ($2)); $$ = $1; };
+	| PLUS unary_expression { $$ = new_subtree (UPLUS_NODE, get_AST_type ($2), 1, $2); }
+	| MINUS unary_expression { $$ = new_subtree (UMINUS_NODE, get_AST_type ($2), 1, $2); }
+	//| unary_operator { add_child ($1, $2); if (get_AST_type ($1) == NO_TYPE) set_AST_type ($1, get_AST_type ($2)); $$ = $1; };
 	// | SIZEOF unary_expression { $$ = $2; }
 	// | SIZEOF LPAR type_name RPAR { $$ = $2; };
 
@@ -101,12 +103,12 @@ unary_expression:
 // This project's "simplification" statement states that
 // bitwise operations shouldn't be implemented.
 // This removes the unary bitwise not from the rule below.
-unary_operator:
-	  AMPER { $$ = new_subtree (REF_NODE, INT_TYPE, 0); }
-	| TIMES { $$ = new_subtree (DEREF_NODE, NO_TYPE, 0); }
-	| PLUS { $$ = new_subtree (UPLUS_NODE, NO_TYPE, 0); }
-	| MINUS { $$ = new_subtree (UMINUS_NODE, NO_TYPE, 0); }
-	| EXCL { $$ = new_subtree (LNEG_NODE, INT_TYPE, 0); };
+// unary_operator:
+// 	  AMPER primary_expression { $$ = new_subtree (REF_NODE, INT_TYPE, 0); }
+// 	| TIMES primary_expression { $$ = new_subtree (DEREF_NODE, NO_TYPE, 0); }
+// 	| PLUS primary_expression { $$ = new_subtree (UPLUS_NODE, NO_TYPE,  1, $2); }
+// 	| MINUS primary_expression { $$ = new_subtree (UMINUS_NODE, NO_TYPE,  1, $2); }
+// 	| EXCL primary_expression { $$ = new_subtree (LNEG_NODE, INT_TYPE, 0); };
 
 
 cast_expression:

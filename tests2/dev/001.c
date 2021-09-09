@@ -4,10 +4,11 @@ int main ()
 	int i, x, res;
 	i = 9;
 	x = 8;
-	res = x + 2;
-	printf("%d", res);
-	if(1 && 1)
+	res = 0;
+	if(1)
 	{
-		printf ("%d", 3 % 3);
+		x = --x;
+		printf("%d", x);
+		printf("%d", res);
 	}
 }
