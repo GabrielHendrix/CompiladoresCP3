@@ -1,0 +1,43 @@
+\documentclass[a4paper] {article}
+
+\usepackage {import}
+\usepackage {Preamble}
+
+
+\author {Franco Schmidt Rossi\\Vinius de Oliveira Risso\\Gabriel Hendrix}
+
+\title{\textit{Checkpoint 2} de Compiladores}
+
+\begin {document}
+
+\maketitle {}
+
+Perguntas específicas não foram definidas no enunciado para o \textit{Checkpoint 2}, como foram no \textit{Checkpoint 1}. Portanto, as perguntas do enunciado do \textit{Checkpoint 1} serão respondidas aqui novamente, referentes aos esforços e resultados do desenvolvimento do \textit{Checkpoint 2}.
+
+\begin{itemize}
+	\item \textbf{Instru\c{c}\~{o}es de compila\c{c}\~{a}o e teste:} Na pasta raiz, o comando \texttt{make all} gera o execut\'{a}vel \texttt{trabalho}, que \'{e} o analisador. O arquivo \texttt{comp\_tests.sh} testa todos os arquivos dentro de cada pasta filha da pasta \texttt{tests2}, no caso, \texttt{tests2/dev}. O comando \texttt{make clean} limpa os arquivos gerados na compila\c{c}\~{a}o do analisador.
+	\item \textbf{O analisador semântico está completo?} Não. Existem requisitos mínimos faltando, específicamente:
+	\begin{itemize}
+		\item O tipo básico \texttt{bool} é substituído por \texttt{int}, de acordo com a especificação da linguagem;
+		\item A declaração e execução correta de chamadas de funções não foi implementada;
+		\item O sistema de tipos não trata adequadamente de todos os tipos permitidos, como por exemplo qualificadores de tipos (\texttt{const}, \texttt{extern}, etc) e declaração de ponteiros (exceto como vetores);
+	\end{itemize}
+	Como a lista acima é relativamente extensa, é válido listar quais requisitos mínimos \textit{funcionam}:
+	\begin{itemize}
+		\item Operações aritméticas e de comparação básicas;
+		\item Comandos de atribuição;
+		\item Uma estrutura de escolha (\texttt{if} e \texttt{else}), e uma estrutura de repetição (\texttt{while});
+		\item Declaração e manipulação de tipos básicos;
+		\item Declaração e manipulação de um tipo composto, no caso vetores.
+		\item As operações de IO básicas, que dependem de funções externas (\texttt{read} e \texttt{write} em C), foram feitas de forma deselegante. Como o analisador não trata funções, antes de começar a análise do código, ele insere as funções de input e output na tabela de varáveis, para que elas possam ser chamadas. Além disso, ele não checa os tipos dos parâmetros das chamadas.
+	\end{itemize}
+	\item \textbf{O analisador semântico está funcionando?} Não completamente. O analisador semântico gera a AST do código dado, respeitando as restrições ditas no tópico acima, mas ele faz poucas análises semânticas propriamente ditas do código. Dois exemplos do que funciona são: ele impede que uma variável inteira receba um valor real, e ele quebra ao encontrar uma chamada de variável que não tenha sido declarada; mas a implementação de regras semânticas foi muito baseada nos laboratórios dados, e não é de forma alguma extensiva o suficiente. Um exemplode algo que não está funcionando é a verificação de argumentos das funções de input e output.
+	\item \textbf{Quais foram as principais dificuldades encontradas at\'{e} aqui?} A falta de uma documentação completa, a interferência de outras atividades de matérias e empregos de todos os participantes, e a dificuldade de se resolver uma dúvida sobre esse tópico na internet.
+	\item \textbf{Como essas dificuldades foram resolvidas?} A falta de documentação foi resolvida fazendo este \textit{Checkpoint} de forma muito semelhante ao Laboratório 05. Isso deixou o trabalho incompleto, mas a \textit{EZLang} é suficientemente parecida com C para que algumas adaptações pudessem ser extrapoladas. As interferências dos empregos dos participantes não foram resolvidas, o que levou à qualidade precária do analisador. A dificuldade de resolver dúvidas não foi sanada, e dúvidas foram em geral resolvidas através de testes e contornos.
+	\item \textbf{H\'{a} algum caso de teste que voc\^{e}s gostariam de chamar aten\c{c}\~{a}o?} O caso de teste \texttt{tests2/dev/000.c} exemplifica como o input e output deveriam ser feitos.
+	\item \textbf{Voc\^{e}s conseguiram tratar a linguagem fonte toda?} Não. Apenas alguns dos requisitos mínimos foram cumpridos.
+	\item \textbf{Quais foram as simplifica\c{c}\~{o}es necess\'{a}rias?} Todas as permitidas, e um pouco mais. O segundo tópico deste relatório entra em detalhe sobre o que foi feito e o que não foi.
+	\item \textbf{Observa\c{c}\~{o}es sobre os testes:} Novamente, o caso de teste \texttt{tests2/dev/000.c} exemplifica como o input e output deveriam ser feitos.
+\end{itemize}
+
+\end {document}
