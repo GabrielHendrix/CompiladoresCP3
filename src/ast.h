@@ -45,6 +45,7 @@ typedef enum {
     VAR_USE_NODE,
     WRITE_NODE,
     PRINTF_NODE,
+    SCANF_NODE,
     RETURN_NODE,
     INIT_LIST_NODE,
 

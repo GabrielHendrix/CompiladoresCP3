@@ -15,7 +15,7 @@ const char* get_text(Type type) {
 }
 
 static const Unif plus[4][4] = {
-    { {INT_TYPE, NONE, NONE}, {REAL_TYPE, I2R, NONE},  {INT_TYPE, NONE, B2I},   {STR_TYPE, I2S, NONE}  },
+    { {INT_TYPE, NONE, REAL_TYPE}, {INT_TYPE, NONE, NONE}, {REAL_TYPE, I2R, NONE},  {INT_TYPE, NONE, B2I},   {STR_TYPE, I2S, NONE}  },
     { {REAL_TYPE, NONE, I2R}, {REAL_TYPE, NONE, NONE}, {REAL_TYPE, NONE, B2R},  {STR_TYPE, R2S, NONE}  },
     { {INT_TYPE, B2I, NONE},  {REAL_TYPE, B2R, NONE},  {BOOL_TYPE, NONE, NONE}, {STR_TYPE, B2S, NONE}  },
     { {STR_TYPE, NONE, I2S},  {STR_TYPE, NONE, R2S},   {STR_TYPE, NONE, B2S},   {STR_TYPE, NONE, NONE} }

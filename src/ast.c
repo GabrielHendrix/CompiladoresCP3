@@ -170,6 +170,7 @@ char* kind2str(NodeKind kind) {
         case FUNC_LIST_NODE:	return "func_list";
         case VAR_USE_NODE:		return "var_use";
         case PRINTF_NODE:       return "printf";
+        case SCANF_NODE:        return "scanf";
         case WRITE_NODE:		return "write";
         case RETURN_NODE:		return "return";
         case INIT_LIST_NODE:	return "init_list";
@@ -194,6 +195,24 @@ int has_data(NodeKind kind) {
         default:
             return 0;
     }
+}
+
+char check_int (AST *node) {
+    // fprintf(stderr, "%s@", get_name(vt, node->data.as_int));
+    // printf(get_name(vt, node->data.as_float)[0]);
+    if (node->kind == VAR_DECL_NODE || node->kind == VAR_USE_NODE)
+        return get_name(vt, node->data.as_int)[0];
+    else
+        return NULL;
+}
+
+char check_float (AST *node) {
+    // fprintf(stderr, "%s@", get_name(vt, node->data.as_float));
+    // printf(get_name(vt, node->data.as_float)[0]);
+    if (node->kind == VAR_DECL_NODE || node->kind == VAR_USE_NODE)
+        return get_name(vt, node->data.as_float)[0];
+    else
+        return NULL;
 }
 
 int print_node_dot(AST *node) {

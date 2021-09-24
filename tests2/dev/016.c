@@ -1,12 +1,12 @@
-
-int func ();
-
-int func ()		/* Definir uma funcao declarada nao funciona */
+void main()
 {
-	int a = 0;
-}
-
-int main ()
-{
-	return 0;
+	int x, y, res;
+	res = 0;
+	
+	scanf("%d", &x);
+	printf("\"nAgora, digite outro número inteiro: ");
+	scanf("%d", &y);
+	res = x % y;
+	printf("\"nO resto da divisão é: ");
+	printf("%d", res);
 }

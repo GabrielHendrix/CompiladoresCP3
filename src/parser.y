@@ -46,7 +46,7 @@ AST *root;
 %define api.value.type {AST*}
 
 // keywords
-%token AUTO BREAK CASE CHAR CONST CONTINUE DEFAULT DO DOUBLE PRINTF ELSE ENUM EXTERN FLOAT FOR GOTO IF INT LONG REGISTER RETURN SHORT SIGNED SIZEOF STATIC STRUCT SWITCH TYPEDEF UNION UNSIGNED VOID VOLATILE WHILE
+%token AUTO BREAK CASE CHAR CONST CONTINUE DEFAULT DO DOUBLE PRINTF SCANF ELSE ENUM EXTERN FLOAT FOR GOTO IF INT LONG REGISTER RETURN SHORT SIGNED SIZEOF STATIC STRUCT SWITCH TYPEDEF UNION UNSIGNED VOID VOLATILE WHILE
 
 // identifiers
 %token ID TYPEDEF_NAME
@@ -117,14 +117,22 @@ cast_expression:
 
 multiplicative_expression:
 	  cast_expression { $$ = $1; }
+	| LPAR cast_expression RPAR { $$ = $2; }
 	| multiplicative_expression TIMES cast_expression { $$ = unify_bin_node($1, $3, TIMES_NODE, "*", unify_other_arith); }
 	| multiplicative_expression OVER cast_expression { $$ = unify_bin_node($1, $3, OVER_NODE, "/", unify_other_arith); }
 	| multiplicative_expression MOD cast_expression { $$ = unify_bin_node($1, $3, MOD_NODE, "%", unify_other_arith); };
+	| cast_expression  TIMES multiplicative_expression { $$ = unify_bin_node($1, $3, TIMES_NODE, "*", unify_other_arith); }
+	| cast_expression OVER multiplicative_expression { $$ = unify_bin_node($1, $3, OVER_NODE, "/", unify_other_arith); }
+	| cast_expression  MOD multiplicative_expression { $$ = unify_bin_node($1, $3, MOD_NODE, "%", unify_other_arith); };
 
 additive_expression:
 	  multiplicative_expression { $$ = $1; }
-	| additive_expression PLUS multiplicative_expression { $$ = unify_bin_node($1, $3, PLUS_NODE, "+", unify_other_arith); }
-	| additive_expression MINUS multiplicative_expression { $$ = unify_bin_node($1, $3, MINUS_NODE, "-", unify_other_arith); };
+	| LPAR additive_expression RPAR { $$ = $2; }
+	| LPAR multiplicative_expression RPAR { $$ = $2; }
+	| additive_expression PLUS multiplicative_expression { $$ = unify_bin_node($1, $3, PLUS_NODE, "+", unify_plus); }
+	| additive_expression MINUS multiplicative_expression { $$ = unify_bin_node($1, $3, MINUS_NODE, "-", unify_plus); };
+	| multiplicative_expression PLUS additive_expression { $$ = unify_bin_node($1, $3, PLUS_NODE, "+", unify_plus); }
+	| multiplicative_expression MINUS additive_expression { $$ = unify_bin_node($1, $3, MINUS_NODE, "-", unify_plus); };
 
 // Again, this project's "simplification" statement states that
 // bitwise operations shouldn't be implemented.
@@ -383,7 +391,8 @@ statement:
 	| iteration_statement	{ $$ = $1; }
 	| jump_statement		{ $$ = $1; }
 	| write_statement		{ $$ = $1; }
-	| printf_statement 		{ $$ = $1; };
+	| printf_statement 		{ $$ = $1; }
+	| scanf_statement 		{ $$ = $1; };
 
 // labeled_statement:
 // 	  ID DDOT statement
@@ -409,8 +418,8 @@ expression_statement:
 	| expression SEMI { $$ = $1; };
 
 selection_statement:
-	  IF LPAR assignment_expression RPAR statement { $$ = check_if_then ($3, $5); }
-	| IF LPAR assignment_expression RPAR statement ELSE statement { $$ = check_if_then_else ($3, $5, $7); };
+	  IF LPAR conditional_expression RPAR statement { $$ = check_if_then ($3, $5); }
+	| IF LPAR conditional_expression RPAR statement ELSE statement { $$ = check_if_then_else ($3, $5, $7); };
 	// | SWITCH LPAR expression RPAR statement;
 
 // Reference material uses "expression<opt> ;" in the rule below.
@@ -421,7 +430,7 @@ selection_statement:
 // To simplify the rule below, "expression_statement" will be used instead of
 // the transcription of "expression<opt> ;"
 iteration_statement:
-	  WHILE LPAR expression RPAR statement { $$ = check_repeat($5, $3); }
+	  WHILE LPAR conditional_expression RPAR statement { $$ = check_repeat($5, $3); }
 	  ;
 	// | DO statement WHILE LPAR expression RPAR SEMI
 	// | FOR LPAR expression_statement expression_statement RPAR statement
@@ -431,8 +440,8 @@ jump_statement:
 // 	  GOTO ID SEMI
 // 	| CONTINUE SEMI
 // 	| BREAK SEMI
-	  RETURN SEMI				{ $$ = new_subtree (RETURN_NODE, NO_TYPE, 0); }
-	| RETURN expression SEMI	{ /*printf ("\tjump_statement2\t%s %d\n", kind2str (get_kind ($2)), get_int_data ($2)); $$ = new_subtree (RETURN_NODE, NO_TYPE, 1, $2);*/ };
+	//  RETURN SEMI				{ $$ = new_subtree (RETURN_NODE, NO_TYPE, 0); }
+	RETURN expression SEMI	{ { $$ = new_subtree (RETURN_NODE, NO_TYPE, 1, $1); }/*printf ("\tjump_statement2\t%s %d\n", kind2str (get_kind ($2)), get_int_data ($2)); $$ = new_subtree (RETURN_NODE, NO_TYPE, 1, $2);*/ };
 
 root:
 	  translation_unit { root = new_subtree (PROGRAM_NODE, NO_TYPE, 1, $1); };
@@ -460,13 +469,19 @@ write_statement:
 ;
 
 printf_statement:
-	PRINTF LPAR STR_VAL COMMA assignment_expression RPAR SEMI { $$ = check_string ($3, $5); }
+	  PRINTF LPAR STR_VAL RPAR SEMI { $$ = new_subtree(PRINTF_NODE, NO_TYPE, 1, $3); }
+	| PRINTF LPAR STR_VAL COMMA assignment_expression RPAR SEMI { $$ = check_string ($3, $5); }
+;
+
+scanf_statement:
+	| SCANF LPAR STR_VAL COMMA AMPER unary_expression RPAR SEMI{ $$ = new_subtree(SCANF_NODE, NO_TYPE, 2, $3, $6); }
 ;
 %%
 
 // ----------------------------------------------------------------------------
 
 AST* check_var() {
+	
     int idx = lookup_var(vt, yytext);
     if (idx == -1) {
         printf("SEMANTIC ERROR (%d): variable '%s' was not declared.\n",
@@ -547,7 +562,7 @@ AST* check_assign(AST *l, AST *r) {
 	if (lt == INT_TYPE) set_int_data (ret, get_int_data (r));
 	if (lt == REAL_TYPE) set_float_data (ret, get_float_data (r));
 
-
+	
     return ret;
 }
 
@@ -595,7 +610,7 @@ int main() {
 
     yyparse();
 	emit_code(root);
-	
+	print_dot(root);
     free_str_table(st);
     free_var_table(vt);
     //free_tree(root);

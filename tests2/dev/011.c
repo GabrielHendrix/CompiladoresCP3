@@ -1,8 +1,12 @@
-
-int main ()
+void main()
 {
-	char s[4], *c;
-	int a, b;
-	s[1], a, b, a*b+1.0*2%b;
-	s[2], write (1, *s, 4);
+	float x, y, res;
+	res = 0.0;
+	
+	scanf("%f", &x);
+	printf("\"nAgora, digite outro número(float): ");
+	scanf("%f", &y);
+	res = x * y;
+	printf("\"nO resultado para a multiplicação é: ");
+	printf("%f", res);
 }

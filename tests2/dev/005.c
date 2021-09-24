@@ -1,7 +1,20 @@
-
 int main ()
 {
-	char s[4];
-	s[1], s[2], s[3];
-	s[0], write (1, s, 4);
+	int x, y;
+
+	scanf("%d", &x);
+	printf("\"n Digite outro valor inteiro para comparação: ");
+	scanf("%d", &y);
+	
+	if (x > y) {
+		printf("x = ");
+		printf("%d", x); 
+		printf(" é maior que y = ");
+		printf("%d", y);
+	} else {
+		printf("x =  ");
+		printf("%d", x); 
+		printf(" é menor que y = ");
+		printf("%d", y);	
+	}
 }

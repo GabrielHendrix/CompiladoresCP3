@@ -515,7 +515,7 @@ StepResult run_r2ss(Instr instr) {
 
 StepResult read_int(int x) {
     int integer;
-    printf("read (int): ");
+    ///printf("read (int): ");
     scanf("%d", &integer);
     is[x] = integer;
     pc++;
@@ -524,7 +524,7 @@ StepResult read_int(int x) {
 
 StepResult read_real(int x) {
     float real;
-    printf("read (real): ");
+    //printf("read (real): ");
     scanf("%f", &real);
     fs[x] = real;
     pc++;
@@ -534,7 +534,7 @@ StepResult read_real(int x) {
 StepResult read_bool(int x) {
     int boolean;
     do {
-        printf("read (bool - 0 = false, 1 = true): ");
+        //printf("read (bool - 0 = false, 1 = true): ");
         scanf("%d", &boolean);
     } while (boolean != 0 && boolean != 1);
     is[x] = boolean;
@@ -543,7 +543,7 @@ StepResult read_bool(int x) {
 }
 
 StepResult read_str(int x) {
-    printf("read (str): ");
+    //printf("read (str): ");
     clear_str_buf();
     scanf("%s", str_buf);   // Did anyone say Buffer Overflow..? ;P
     is[x] = add_string(st, str_buf);

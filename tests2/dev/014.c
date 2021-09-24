@@ -1,11 +1,12 @@
-
-int main ()
+void main()
 {
-	char s[4];
-	int a, b;
-	float c;
-	s[1], a, b, a*b+1.0*2%b;
-	a = (int) c; // Casting nao foi implementado corretamente
-	c = a;
-	s[2], write (1, *s, 4);
+	int x, y, res;
+	res = 0;
+	
+	scanf("%d", &x);
+	printf("\"nAgora, digite outro número inteiro: ");
+	scanf("%d", &y);
+	res = x / y;
+	printf("\"nO resultado para a divisão é: ");
+	printf("%d", res);
 }

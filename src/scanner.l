@@ -87,6 +87,7 @@ void echo ();
 "volatile"		{ process_token (VOLATILE); }
 "while"			{ process_token (WHILE); }
 "printf"		{ process_token (PRINTF); }
+"scanf"			{ process_token (SCANF); }
 
 {hex-val}		{ yylval = new_node (INT_VAL_NODE, (int) strtol (yytext, NULL, 16), INT_TYPE); process_token (CONSTVAL); }
 {oct-val}		{ yylval = new_node (INT_VAL_NODE, (int) strtol (yytext, NULL, 8), INT_TYPE); process_token (CONSTVAL); }

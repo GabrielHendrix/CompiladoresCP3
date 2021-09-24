@@ -1,14 +1,12 @@
-
-int main ()
+void main()
 {
-	int i, x, res;
-	i = 9;
-	x = 8;
+	int x, y, res;
 	res = 0;
-	if(1)
-	{
-		x = --x;
-		printf("%d", x);
-		printf("%d", res);
-	}
+	
+	scanf("%d", &x);
+	printf("\"nAgora, digite o subtraendo: ");
+	scanf("%d", &y);
+	res = x - y;
+	printf("\"nO resultado para a subtração é: ");
+	printf("%d", res);
 }

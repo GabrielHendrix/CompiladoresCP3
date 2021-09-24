@@ -1,11 +1,12 @@
-
-int main ()
+void main()
 {
-	char s[4];
-	int a, b;
-	float c;
-	s[1], a, b, a*b+1.0*2%b;
-	a = c; // Falha por incompatibilidade de tipos
-	c = a;
-	s[2], write (1, *s, 4);
+	int x, y, res;
+	res = 0;
+	
+	scanf("%d", &x);
+	printf("\"nAgora, digite outro número: ");
+	scanf("%d", &y);
+	res = x * y;
+	printf("\"nO resultado para a multiplicação é: ");
+	printf("%d", res);
 }

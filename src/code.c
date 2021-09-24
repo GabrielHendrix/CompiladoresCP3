@@ -11,6 +11,8 @@
 extern StrTable *st;
 extern VarTable *vt;
 // ----------------------------------------------------------------------------
+extern char * yytext;
+extern int yylineno;
 
 extern StrTable *st;
 extern VarTable *vt;
@@ -63,52 +65,103 @@ void print_stack() {
     printf("\n");
 }
 
-// ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Code memory ----------------------------------------------------------------
 
-Instr code[INSTR_MEM_SIZE];
-int next_instr;
+// Variables memory -----------------------------------------------------------
+
+#define MEM_SIZE 100
+
+Word mem[MEM_SIZE];
+
+void storei(int addr, int val) {
+    mem[addr].as_int = val;
+}
+
+int loadi(int addr) {
+    return mem[addr].as_int;
+}
+
+void storef(int addr, float val) {
+    mem[addr].as_float = val;
+}
+
+float loadf(int addr) {
+    return mem[addr].as_float;
+}
+
+void init_mem() {
+    for (int addr = 0; addr < MEM_SIZE; addr++) {
+        mem[addr].as_int = 0;
+    }
+}
+
+// // ----------------------------------------------------------------------------
+
+// // ----------------------------------------------------------------------------
+// // Code memory ----------------------------------------------------------------
+
+// Instr code[INSTR_MEM_SIZE];
+// int next_instr;
 #define MAX_STR_SIZE 128
 static char str_buf[MAX_STR_SIZE];
 #define clear_str_buf() str_buf[0] = '\0'
-// ----------------------------------------------------------------------------
-// Emits ----------------------------------------------------------------------
 
-void emit(OpCode op, int o1, int o2, int o3) {
-    code[next_instr].op = op;
-    code[next_instr].o1 = o1;
-    code[next_instr].o2 = o2;
-    code[next_instr].o3 = o3;
-    next_instr++;
-}
-
-#define emit0(op) \
-    emit(op, 0, 0, 0)
-
-#define emit1(op, o1) \
-    emit(op, o1, 0, 0)
-
-#define emit2(op, o1, o2) \
-    emit(op, o1, o2, 0)
-
-#define emit3(op, o1, o2, o3) \
-    emit(op, o1, o2, o3)
-
-void backpatch_jump(int instr_addr, int jump_addr) {
-    code[instr_addr].o1 = jump_addr;
-}
-
-void backpatch_branch(int instr_addr, int offset) {
-    code[instr_addr].o2 = offset;
-}
 
 // ----------------------------------------------------------------------------
-// Prints ---------------------------------------------------------------------
+// AST Traversal --------------------------------------------------------------
 
-#define LINE_SIZE 80
-#define MAX_STR_SIZE 128
+int int_regs_count;
+int float_regs_count;
+
+#define new_int_reg() \
+    int_regs_count++
+
+#define new_float_reg() \
+    float_regs_count++
+
+
+void read_int(int var_idx) {
+    int x;
+    // printf("read (int): ");
+    scanf("%d", &x);
+    storei(var_idx, x);
+}
+
+void read_real(int var_idx) {
+    float x;
+    // printf("read (real): ");
+    scanf("%f", &x);
+    storef(var_idx, x);
+}
+
+void read_bool(int var_idx) {
+    int x;
+    do {
+        // printf("read (bool - 0 = false, 1 = true): ");
+        scanf("%d", &x);
+    } while (x != 0 && x != 1);
+    storei(var_idx, x);
+}
+
+void read_str(int var_idx) {
+    printf("read (str): ");
+    clear_str_buf();
+    scanf("%s", str_buf);   // Did anyone say Buffer Overflow..? ;P
+    storei(var_idx, add_string(st, str_buf));
+}
+
+void write_int() {
+    printf("%d\n", popi());
+}
+
+void write_real() {
+    printf("%f\n", popf());
+}
+
+void write_bool() {
+    popi() == 0 ? printf("false\n") : printf("true\n");
+}
 
 // Helper function to write strings.
 void escape_str(const char* s, char *n) {
@@ -126,684 +179,1013 @@ void escape_str(const char* s, char *n) {
     n[j] = '\0';
 }
 
-void get_instruction_string(Instr instr, char *s) {
-    OpCode op = instr.op;
-    s += sprintf(s, "%s", OpStr[op]);
-    int op_count = OpCount[op];
-    if (op_count == 1) {
-        sprintf(s, " %d", instr.o1);
-    } else if (op_count == 2) {
-        sprintf(s, " %d, %d", instr.o1, instr.o2);
-    } else if (op_count == 3) {
-        sprintf(s, " %d, %d, %d", instr.o1, instr.o2, instr.o3);
-    }
+void write_str() {
+    int s = popi(); // String pointer
+    clear_str_buf();
+    escape_str(get_string(st, s), str_buf);
+    printf(str_buf); // Weird language semantics, if printing a string, no new line.
 }
 
-void write_instruction(int addr) {
-    Instr instr = code[addr];
-    char instr_str[LINE_SIZE];
-    get_instruction_string(instr, instr_str);
-    printf("%s\n", instr_str);
-}
-
-void dump_program() {
-    for (int addr = 0; addr < next_instr; addr++) {
-        write_instruction(addr);
-    }
-}
-
-void dump_str_table() {
-    int table_size = get_str_table_size(st);
-    for (int i = 0; i < table_size; i++) {
-        printf("SSTR %s\n", get_string(st, i));
-    }
-}
-
-// ----------------------------------------------------------------------------
-// AST Traversal --------------------------------------------------------------
-
-int int_regs_count;
-int float_regs_count;
-
-#define new_int_reg() \
-    int_regs_count++
-
-#define new_float_reg() \
-    float_regs_count++
-
-int rec_emit_code(AST *ast);
+void rec_emit_code(AST *ast);
 
 // ----------------------------------------------------------------------------
 
-int emit_assign(AST *ast) {
-    AST *r = get_child(ast, 1);
-    int x = rec_emit_code(r);
+
+
+void emit_assign(AST *ast) {
     int addr = get_data(get_child(ast, 0));
-    Type var_type = get_type(vt, addr);
-    if (var_type == REAL_TYPE) {
-        emit2(STWf, addr, x);
-    } else { // All other types, include ints, bools and strs.
-        emit2(STWi, addr, x);
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_eq(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) { // Could equally test 'l' here.
-        emit3(EQUf, x, y, z);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(EQUi, x, y, z);
-    } else { // Must be STR_TYPE
-        emit3(EQUs, x, y, z);
-    }
-    return x;
-}
-
-int emit_neq(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) { // Could equally test 'l' here.
-        emit3(NEQUf, x, y, z);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(NEQUi, x, y, z);
-    } else { // Must be STR_TYPE
-        emit3(NEQUs, x, y, z);
-    }
-    return x;
-}
-
-int emit_le(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    int w = new_int_reg();
-    int a = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) { // Could equally test 'l' here.
-        emit3(LTHf, x, y, z);
-        emit3(EQUf, w, y, z);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(LTHi, x, y, z);
-        emit3(EQUi, w, y, z);
-    } else { // Must be STR_TYPE
-        emit3(LTHs, x, y, z);
-        emit3(EQUs, w, y, z);
-    }
-    emit3(OROR, a, x, w);
-    return a;
-}
-
-int emit_ge(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    int w = new_int_reg();
-    int a = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) { // Could equally test 'l' here.
-        emit3(LTHf, x, z, y);
-        emit3(EQUf, w, x, y);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(LTHi, x, z, y);
-        emit3(EQUi, w, z, y);
-    } else { // Must be STR_TYPE
-        emit3(LTHs, x, z, y);
-        emit3(EQUs, w, z, y);
-    }
-    emit3(OROR, a, x, w);
-    return a;
-}
-
-int emit_block(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_stmt_list(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_expr_list(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_init_list(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_arg_list(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_func_list(AST *ast) {
-    int size = get_child_count(ast);
-    for (int i = 0; i < size; i++) {
-        rec_emit_code(get_child(ast, i));
-    }
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_bool_val(AST *ast) {
-    int x = new_int_reg();
-    int c = get_data(ast);
-    emit2(LDIi, x, c);
-    return x;
-}
-
-int emit_if(AST *ast) {
-    // Code for test.
-    int test_reg = rec_emit_code(get_child(ast, 0));
-    int cond_jump_instr = next_instr;
-    emit2(BOFb, test_reg, 0); // Leave offset empty now, will be backpatched.
-
-    // Code for TRUE block.
-    int true_branch_start = next_instr;
-    rec_emit_code(get_child(ast, 1)); // Generate TRUE block.
-
-    // Code for FALSE block.
-    int false_branch_start;
-    if (get_child_count(ast) == 3) { // We have an else.
-        // Emit unconditional jump for TRUE block.
-        int uncond_jump_instr = next_instr;
-        emit1(JUMP, 0); // Leave address empty now, will be backpatched.
-        false_branch_start = next_instr;
-        rec_emit_code(get_child(ast, 2)); // Generate FALSE block.
-        // Backpatch unconditional jump at end of TRUE block.
-        backpatch_jump(uncond_jump_instr, next_instr);
-    } else {
-        false_branch_start = next_instr;
-    }
-
-    // Backpatch test.
-    backpatch_branch(cond_jump_instr, false_branch_start - true_branch_start + 1);
-
-    return -1; // This is not an expression, hence no value to return.
-}
-
-int emit_int_val(AST *ast) {
-    int x = new_int_reg();
-    int c = get_data(ast);
-    emit2(LDIi, x, c);
-    return x;
-}
-
-int emit_lt(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) {  // Could equally test 'l' here.
-        emit3(LTHf, x, y, z);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(LTHi, x, y, z);
-    } else { // Must be STR_TYPE
-        emit3(LTHs, x, y, z);
-    }
-    return x;
-}
-
-int emit_and(AST *ast){
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    emit3(ANDAND, x, z, y);
-
-    return x;
-}
-
-int emit_or(AST *ast){
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    emit3(OROR, x, z, y);
-
-    return x;
-}
-
-int emit_gt(AST *ast) {
-    AST *l = get_child(ast, 0);
-    AST *r = get_child(ast, 1);
-    int y = rec_emit_code(l);
-    int z = rec_emit_code(r);
-    int x = new_int_reg();
-    if (get_node_type(r) == REAL_TYPE) {  // Could equally test 'l' here.
-        emit3(LTHf, x, z, y);
-    } else if (get_node_type(r) == INT_TYPE) {
-        emit3(LTHi, x, z, y);
-    } else { // Must be STR_TYPE
-        emit3(LTHs, x, z, y);
-    }
-    return x;
-}
-
-int emit_minus(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int z = rec_emit_code(get_child(ast, 1));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit3(SUBf, x, y, z);
-    } else {
-        x = new_int_reg();
-        emit3(SUBi, x, y, z);
-    }
-    return x;
-}
-
-int emit_pre_inc(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int addr = get_data(get_child(ast, 0));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(INCf, x, y);
-        emit2(STWf, addr, x);
-    } else {
-        x = new_int_reg();
-        emit2(INCi, x, y);
-        emit2(STWi, addr, x);
-    }
-    return x;
-}
-
-int emit_pre_dec(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int addr = get_data(get_child(ast, 0));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(DECf, x, y);
-        emit2(STWf, addr, x);
-    } else {
-        x = new_int_reg();
-        emit2(DECi, x, y);
-        emit2(STWi, addr, x);
-    }
-    return x;
-}
-
-int emit_uplus(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int addr = get_data(get_child(ast, 0));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(UPLUSf, x, y);
-        emit2(STWf, addr, x);
-    } else {
-        x = new_int_reg();
-        emit2(UPLUSi, x, y);
-        emit2(STWi, addr, x);
-    }
-    return x;
-}
-
-int emit_uminus(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int addr = get_data(get_child(ast, 0));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(UMINUSf, x, y);
-        emit2(STWf, addr, x);
-    } else {
-        x = new_int_reg();
-        emit2(UMINUSi, x, y);
-        emit2(STWi, addr, x);
-    }
-    return x;
-}
-
-int emit_over(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int z = rec_emit_code(get_child(ast, 1));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit3(DIVf, x, y, z);
-    } else {
-        x = new_int_reg();
-        emit3(DIVi, x, y, z);
-    }
-    return x;
-}
-
-int emit_mod(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int z = rec_emit_code(get_child(ast, 1));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit3(MODi, x, y, z);
-    } else {
-        x = new_int_reg();
-        emit3(MODi, x, y, z);
-    }
-    return x;
-}
-
-int emit_plus(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int z = rec_emit_code(get_child(ast, 1));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit3(ADDf, x, y, z);
-    } else if (get_node_type(ast) == INT_TYPE) {
-        x = new_int_reg();
-        emit3(ADDi, x, y, z);
-    } else if (get_node_type(ast) == BOOL_TYPE) {
-        x = new_int_reg();
-        emit3(OROR, x, y, z);
-    } else { // Must be STR_TYPE
-        x = new_int_reg();
-        emit3(CATs, x, y, z);
-    }
-    return x;
-}
-
-int emit_program(AST *ast) {
-    rec_emit_code(get_child(ast, 0)); // var_list
-    //rec_emit_code(get_child(ast, 1)); // block
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_read(AST *ast) {
-    AST *var = get_child(ast, 0);
-    Type var_type = get_node_type(var);
-    int addr = get_data(var);
-    int x;
-    if (var_type == INT_TYPE) {
-        x = new_int_reg();
-        emit2(CALL, 0, x);
-        emit2(STWi, addr, x);
-    } else if (var_type == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(CALL, 1, x);
-        emit2(STWf, addr, x);
-    } else if (var_type == BOOL_TYPE) {
-        x = new_int_reg();
-        emit2(CALL, 2, x);
-        emit2(STWi, addr, x);
-    } else { // Must be STR_TYPE
-        x = new_int_reg();
-        emit2(CALL, 3, x);
-        emit2(STWi, addr, x);
-    }
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_real_val(AST *ast) {
-    int x = new_float_reg();
-    // We need to read as an int because the TM cannot handle floats directly.
-    // But we have a float stored in the AST, so we just read it as an int
-    // and magically we have a float encoded as an int... :P
-    int c = get_data(ast);
-    emit2(LDIf, x, c);
-    return x;
-}
-
-int emit_repeat(AST *ast) {
-    int begin_repeat = next_instr;
-    rec_emit_code(get_child(ast, 0)); // Emit code for body.
-    int test_reg = rec_emit_code(get_child(ast, 1)); // Emit code for test.
-    emit2(BOFb, test_reg, begin_repeat - next_instr);
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_return(AST *ast) {
-    int begin_repeat = next_instr;
-    rec_emit_code(get_child(ast, 0)); // Emit code for body.
-    int test_reg = rec_emit_code(get_child(ast, 1)); // Emit code for test.
-    emit2(BOFb, test_reg, begin_repeat - next_instr);
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_str_val(AST *ast) {
-    int x = new_int_reg();
-    int c = get_data(ast);
-    emit2(LDIi, x, c);
-    return x;
-}
-
-int emit_printf(AST *ast) 
-{
-    AST *expr = get_child(ast, 0);
-
-    Type expr_type = get_node_type(expr);
     
-    if (expr_type == STR_TYPE)
-    {
+    AST *r = get_child(ast, 1);
+    
+    Type var_type = get_type(vt, addr);
+    rec_emit_code(r);
+    if (var_type == REAL_TYPE && (get_kind(r) != PLUS_NODE) && 
+       (get_kind(r) != MOD_NODE) && (get_kind(r) != TIMES_NODE)
+       && (get_kind(r) != OVER_NODE) && (get_kind(r) != MINUS_NODE)) {
+        printf(".data\n%s:\t.float\t", get_name(vt, addr));
+        printf("%f\n", popf());
+    } else if (var_type == INT_TYPE && (get_kind(r) != PLUS_NODE) && 
+       (get_kind(r) != MOD_NODE) && (get_kind(r) != TIMES_NODE)
+       && (get_kind(r) != OVER_NODE) && (get_kind(r) != MINUS_NODE)) {
+        printf(".data\n%s:\t.word\t", get_name(vt, addr));
+        printf("%d\n", popi());
+    } else if  (var_type == STR_TYPE) { // All other types, include ints, bools and strs.
         int s = popi(); // String pointer
         clear_str_buf();
         escape_str(get_string(st, s), str_buf);
+        printf(".data\n%s:\t.asciiz\t", get_name(vt, addr));
+        printf("\"%s\"\n", str_buf);
+    } else if (var_type == REAL_TYPE) {
+        printf("swc1\t$f12, %s\n", get_name(vt, addr));
+    } else if (var_type == INT_TYPE) {
+        printf("sw\t$t%d, %s\n", get_data(ast), get_name(vt, addr));
+    } 
+}
 
-        if(strstr(str_buf, "%s") != NULL)
+void emit_block(AST *ast) {
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));
+    }
+}
+
+void emit_stmt_list(AST *ast) {
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));
+    }
+}
+
+void emit_expr_list(AST *ast) {
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));
+    }
+}
+
+void emit_init_list(AST *ast) {
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));
+    }
+}
+
+void emit_arg_list(AST *ast) {
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));
+    }
+}
+
+void emit_func_list(AST *ast) {
+    int addr = get_data(get_child(ast, 0));
+    printf("%s:\n", get_name(vt, addr));
+    int size = get_child_count(ast);
+    for (int i = 0; i < size; i++) {
+        rec_emit_code(get_child(ast, i));    
+    }
+}
+
+void emit_return(AST *ast) {
+    rec_emit_code(get_child(ast, 0)); // Emit code for test.
+}
+
+void emit_int_val(AST *ast) {
+    pushi(get_data(ast));
+}
+
+void emit_program(AST *ast) {
+    printf(".globl main\n");
+    rec_emit_code(get_child(ast, 0)); // var_list
+}
+
+void emit_real_val(AST *ast) {
+    pushf(get_float_data(ast));
+}
+
+void emit_str_val(AST *ast) {
+    pushi(get_data(ast));
+}
+
+void emit_var_decl(AST *ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_var_list(AST *ast) {
+    // AST *l = get_child(ast, 0);
+    // int size = get_child_count(l);
+    // for (int i = 0; i < size; i++) {
+    //     int addr = get_data(get_child(l, i));
+    //     Type var_type = get_type(vt, addr);
+    //     if  (var_type == STR_TYPE) { // All other types, include ints, bools and strs.
+    //         int s = popi(); // String pointer
+    //         clear_str_buf();
+    //         escape_str(get_string(st, s), str_buf);
+    //         printf(".data\n%s:   .asciiz\t\n" " ", get_name(vt, addr));
+    //         printf("\"%s\"\n", str_buf);
+    //     } else if (var_type == REAL_TYPE) {
+    //         printf(".data\n%s:   .float\t0.0\n", get_name(vt, addr));
+    //     } else if (var_type == INT_TYPE) {
+    //         printf(".data\n%s:   .word\t0\n", get_name(vt, addr));
+    //     }    
+    // }
+}
+
+void emit_var_use(AST *ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_b2i(AST* ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_b2s(AST* ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_i2s(AST* ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_r2s(AST* ast) {
+    rec_emit_code(get_child(ast, 0));
+}
+
+void emit_minus(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == REAL_TYPE) {
+        if (check_float(l) != NULL) {
+            printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
+        } 
+        else if (check_float(l) == NULL) {
+            rec_emit_code(l);
+            printf(".data\nft%d:\t.float  %f\n", get_data(r) + 9, popf());
+            printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(r) + 9);
+        }
+        if (get_node_type(r) == REAL_TYPE) {
+            if (check_float(r) != NULL)
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_float(r) == NULL) {
+                rec_emit_code(r);
+                printf(".data\nft%d:\t.float  %f\n", get_data(r), popf());
+                printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 2, get_data(r));
+            }
+            printf("sub.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2);
+            printf("mov.s\t$f12, $f%d\n", get_data(ast)); 
+        }
+    } else if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+    }
+    if (get_kind(r) == B2R_NODE) { 
+        rec_emit_code(r);
+        
+        printf("sub\t$t0, $t%d, $t%d\n", get_data(ast) + 1, get_data(ast) + 2); 
+    }
+    // AST *l = get_child(ast, 0);
+    // AST *r = get_child(ast, 1);
+    // int addr_l, addr_r;
+    // addr_l = get_data(l);
+    // addr_r = get_data(r);
+    // if (get_node_type(l) == INT_TYPE) { 
+    //     if (check_int(l) != NULL)
+    //         printf(".text\nlw\t$t%d, %s\n", loadi(addr_l), get_name(vt, addr_l));  
+    //     else if (check_int(l) == NULL) {
+    //         rec_emit_code(l);
+    //         printf(".text\nli\t$t%d, %d\n", loadi(addr_l), popi());
+    //     }
+    // } else if (get_node_type(l) == REAL_TYPE) { 
+    //     if (check_float(l) != NULL)
+    //         printf(".text\nlwc1\t$f%.0f, %s\n", loadf(addr_l), get_name(vt, addr_l));  
+    //     else if (check_float(l) == NULL) {
+    //         rec_emit_code(l);
+    //         printf(".data\nft1:\t.float  %f\n", popf());
+    //         printf(".text\nlwc1\t$%.0f, ft1\n", loadf(addr_r));
+    //     }
+    // }
+    // if (get_kind(r) == B2R_NODE) { 
+    //     rec_emit_code(r);
+        
+    //     printf("sub\t$t1, $t%d, $t%d\n", loadi(addr_r), loadi(addr_r) + 1); 
+    // } else if (get_kind(r) != B2R_NODE) {
+    //     if (get_node_type(r) == REAL_TYPE) { 
+    //         if (check_float(r) == NULL && get_node_type(l) == INT_TYPE) {
+    //             rec_emit_code(r);
+    //             // printf(".text\nli\t$t%d, %f\n", loadi(addr_l), popf());
+    //             printf(".data\nft1:\t.float  %f\n", popf());
+    //             printf(".text\nlwc1\t$t%d, ft1\n", loadi(addr_l) + 1);
+    //             printf("sub\t$t1, $t%d, $t%d\n", loadi(addr_l), loadi(addr_l) + 1); 
+    //         } else if (check_float(r) == NULL && get_node_type(l) == REAL_TYPE) {
+    //             rec_emit_code(r);
+    //             printf(".data\nft1:\t.float  %f\n", popf());
+    //             printf(".text\nlwc1\t$f1, ft1\n");
+    //             printf("sub.s\t$f1, $f%.0f, $f%.0f\n", loadf(addr_r), loadf(addr_r) + 1); 
+    //         } 
+    //         else if (check_float(r) != NULL)
+    //             printf(".text\nlwc1\t$f%.0f, %s\n", loadf(addr_r) + 1, get_name(vt, addr_r));
+    //             printf("sub.s\t$f1, $f%.0f, $f%.0f\n", loadf(addr_r), loadf(addr_r) + 1);   
+    //     }
+    // }
+}
+
+
+int emit_over(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    } else if (get_node_type(l) == REAL_TYPE) { 
+        if (check_float(l) != NULL) {
+            printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
+        } else if (check_float(l) == NULL) {
+            rec_emit_code(l);
+            printf(".data\nft%d:\t.float  %f\n", get_data(r) + 9, popf());
+            printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(r) + 9);  
+        }
+        if (get_node_type(r) == REAL_TYPE) { 
+            if (check_float(r) != NULL)
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));
+            else if (check_float(r) == NULL) {
+                rec_emit_code(r);
+                printf(".data\nft%d:\t.float  %f\n", get_data(r), popf());
+                printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 2, get_data(r));
+            }
+            printf("div.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2);
+            printf("mov.s\t$f12, $f%d\n", get_data(ast));
+        }
+    }
+    if ((get_node_type(l) == INT_TYPE) && (get_node_type(r) == INT_TYPE)) {
+        printf("div\t$t%d, $t%d\n", get_data(ast) + 1, get_data(ast) + 2); 
+        printf("mflo\t$t%d\n", get_data(ast));
+    }   
+}
+
+int emit_mod(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    } else if (get_node_type(l) == REAL_TYPE) { 
+        if (check_float(l) != NULL) {
+            printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
+        } else if (check_float(l) == NULL) {
+            rec_emit_code(l);
+            printf(".data\nft%d:\t.float  %f\n", get_data(r) + 9, popf());
+            printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(r) + 9);  
+        }
+        if (get_node_type(r) == REAL_TYPE) { 
+            if (check_float(r) != NULL)
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));
+            else if (check_float(r) == NULL) {
+                rec_emit_code(r);
+                printf(".data\nft%d:\t.float  %f\n", get_data(r), popf());
+                printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 2, get_data(r));
+            }
+            printf("div.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2);
+            printf("mov.s\t$f12, $f%d\n", get_data(ast));
+        }
+    }
+    if ((get_node_type(l) == INT_TYPE) && (get_node_type(r) == INT_TYPE)) {
+        printf("div\t$t%d, $t%d\n", get_data(ast) + 1, get_data(ast) + 2); 
+        printf("mfhi\t$t%d\n", get_data(ast));
+    }   
+}
+
+void emit_plus(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == REAL_TYPE) {
+        if (check_float(l) != NULL)
+            printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_float(l) == NULL) {
+            rec_emit_code(l);
+            printf(".data\nft%d:\t.float  %f\n", get_data(r) + 9, popf());
+            printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(r) + 9);
+        }
+        if (get_node_type(r) == REAL_TYPE) {
+            if (check_float(r) != NULL)
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_float(r) == NULL) {
+                rec_emit_code(r);
+                printf(".data\nft%d:\t.float  %f\n", get_data(r), popf());
+                printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 2, get_data(r));
+            }
+            printf("add.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2); 
+            printf("mov.s\t$f12, $f%d\n", get_data(ast));
+        }
+    } else if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+    }
+    if (get_kind(r) == B2R_NODE) { 
+        rec_emit_code(r);
+        
+        printf("add\t$t0, $t%d, $t%d\n", get_data(ast) + 1, get_data(ast) + 2); 
+    }
+}
+
+void emit_times(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    } else if (get_node_type(l) == REAL_TYPE) { 
+        if (check_float(l) != NULL) {
+            printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
+        } else if (check_float(l) == NULL) {
+            rec_emit_code(l);
+            printf(".data\nft%d:\t.float\t%f\n", get_data(r) + 9, popf());
+            printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(r) + 9);      
+        }
+        if (get_node_type(r) == REAL_TYPE) { 
+            if (check_float(r) != NULL)
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));
+            else if (check_float(r) == NULL) {
+                rec_emit_code(r);
+                printf(".data\nft%d:\t.float\t%f\n", get_data(r), popf());
+                printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast), get_data(r));
+            }
+            printf("mul.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2);
+            printf("mov.s\t$f12, $f%d\n", get_data(ast));
+        }
+    }
+    if ((get_node_type(l) == INT_TYPE) && (get_node_type(r) == INT_TYPE)) {
+        printf("mul\t$t%d, $t%d, $t%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2); 
+    }  
+}
+
+
+void emit_printf(AST *ast) 
+{
+    int size = get_child_count(ast);
+    if(size == 2) 
+    {
+        AST *expr = get_child(ast, 0);
+
+        Type expr_type = get_node_type(expr);
+        
+        if (expr_type == STR_TYPE)
         {
-            AST *expr2 = get_child(ast, 1);
-            int x = rec_emit_code(expr2);
-            Type expr_type2 = get_node_type(expr2);
-            int s = popi(); // String pointer
+            int s = get_data(ast); // String pointer
             clear_str_buf();
             escape_str(get_string(st, s), str_buf);
-            dump_str_table();
-            if (expr_type2 == STR_TYPE)
+            if(strstr(str_buf, "%s") != NULL)
             {
-                emit2(CALL, 7, x); 
-            }    
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                
+                if (expr_type2 == STR_TYPE)
+                {
+                    printf(".text\nlw\t$t0, %s\n", get_name(vt, addr_l)); 
+                    printf("move\t$a0, $t0\n");
+                    printf("li\t$v0, 4\n");
+                }    
+            }
+            if(strstr(str_buf, "%d") != NULL)
+            {
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                      
+                if (expr_type2 == INT_TYPE)
+                {
+                    if (check_int(expr2) != NULL)
+                        printf(".text\nlw\t$t0, %s\n", get_name(vt, addr_l)); 
+                    else if (check_int(expr2) == NULL) {
+                        rec_emit_code(expr2);
+                        printf(".text\nmove\t$t0, $t1\n");
+                    }
+                    printf("move\t$a0, $t0\n");
+                    printf("li\t$v0, 1\n");
+                } else if (expr_type2 == BOOL_TYPE)
+                {
+                    printf("move\t$a0, $t1\n");
+                    printf("li\t$v0, 1\n");
+                }    
+            }
+            if(strstr(str_buf, "%f") != NULL)
+            {
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                if (expr_type2 == REAL_TYPE)
+                {
+                    if (check_float(expr2) != NULL)
+                        printf(".text\nlwc1\t$f12, %s\n", get_name(vt, addr_l)); 
+                    else if (check_float(expr2) == NULL) {
+                        rec_emit_code(expr2);
+                        printf(".text\nmove\t$f12, $f1\n");
+                    }
+                    printf("li\t$v0, 2\n");
+                }    
+            }
         }
-        if(strstr(str_buf, "%d") != NULL)
+    }
+    else if(size == 1)  {
+        int s = get_data(get_child(ast, 0)); // String pointer
+        clear_str_buf();
+        escape_str(get_string(st, s), str_buf);
+        
+        printf(".data\nmsg%d:\t.asciiz\t\"%s\"\n", get_data(get_child(ast,0)), str_buf); 
+        printf(".text\nla\t$a0, msg%d\n", get_data(get_child(ast,0))); 
+        printf("li\t$v0, 4\n");
+    }
+    printf("syscall\n");
+}
+
+void emit_scanf(AST *ast) {
+    int size = get_child_count(ast);
+    if(size == 2) 
+    {
+        AST *expr = get_child(ast, 0);
+
+        Type expr_type = get_node_type(expr);
+        
+        if (expr_type == STR_TYPE)
         {
-            AST *expr2 = get_child(ast, 1);
-            int x = rec_emit_code(expr2);
-            Type expr_type2 = get_node_type(expr2);
-       
-            if (expr_type2 == INT_TYPE)
+            int s = get_data(ast); // String pointer
+            clear_str_buf();
+            escape_str(get_string(st, s), str_buf);
+            if(strstr(str_buf, "%s") != NULL)
             {
-                emit2(CALL, 4, x);
-            } 
-            if (expr_type2 == BOOL_TYPE)
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                
+                if (expr_type2 == STR_TYPE)
+                {
+                    printf(".data\nmsg%d:\t.asciiz\t\"%s\"\n", get_data(get_child(ast,0)), str_buf);
+                    printf("li\t$v0, 8\n");
+                    printf(".text\nsw\t$v0, msg%d\n", get_data(get_child(ast,0))); 
+                }    
+            }
+            if(strstr(str_buf, "%d") != NULL)
             {
-                emit2(CALL, 4, x);
-            }    
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                int s = get_data(ast); // String pointer
+                clear_str_buf();
+                escape_str(get_string(st, s), str_buf); 
+                if (expr_type2 == INT_TYPE)
+                {
+                    if (check_int(expr2) != NULL)
+                        printf(".data\n%s:\t.word\t0\n", get_name(vt, addr_l)); 
+                    printf(".text\nli\t$v0, 5\nsyscall\n");
+                    printf("sw\t$v0, %s\n", get_name(vt, addr_l));
+                } else if (expr_type2 == BOOL_TYPE)
+                {
+                    printf("move\t$a0, $t1\n");
+                    printf("li\t$v0, 5\nsyscall\n");
+                }    
+            }
+            if(strstr(str_buf, "%f") != NULL)
+            {
+                AST *expr2 = get_child(ast, 1);
+                Type expr_type2 = get_node_type(expr2);
+                int addr_l = get_data(expr2);
+                int s = get_data(ast); // String pointer
+                clear_str_buf();
+                escape_str(get_string(st, s), str_buf); 
+
+                if (expr_type2 == REAL_TYPE)
+                {
+                    if (check_float(expr2) != NULL)
+                        printf(".data\n%s:\t.float\t0.0\n", get_name(vt, addr_l));
+                    printf(".text\nli\t$v0, 6\nsyscall\n");
+                    printf("swc1\t$f0, %s\n", get_name(vt, addr_l));
+                }    
+            }
         }
-        if(strstr(str_buf, "%f") != NULL)
-        {
-            AST *expr2 = get_child(ast, 1);
-            int x = rec_emit_code(expr2);
-            Type expr_type2 = get_node_type(expr2);
-       
-            if (expr_type2 == REAL_TYPE)
-            {
-                emit2(CALL, 5, x);
-            }    
+    }
+}
+
+void emit_b2r(AST* ast) {
+  
+    AST *r = get_child(ast, 0);
+    int addr_r = get_data(r);
+    if (get_node_type(r) == INT_TYPE) { 
+        if (check_int(r) != NULL) {
+            printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+        }
+        else if (check_int(r) == NULL) {
+            rec_emit_code(get_child(ast, 0));
+            printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
         }
     }
-    return -1;
 }
 
-int emit_times(AST *ast) {
-    int x;
-    int y = rec_emit_code(get_child(ast, 0));
-    int z = rec_emit_code(get_child(ast, 1));
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit3(MULf, x, y, z);
-    } else {
-        x = new_int_reg();
-        emit3(MULi, x, y, z);
+
+
+void emit_i2r(AST* ast) {
+    rec_emit_code(get_child(ast, 0));
+    AST *r = get_child(ast, 0);
+    int addr_r = get_data(r);
+
+    if (get_node_type(r) == INT_TYPE) { 
+        if (check_int(r) != NULL) {
+            printf("lwc1\t$f3, %s\n", get_name(vt, addr_r));  
+            printf("add.s\t$f1, $f2, $f3\n");
+        }
+        else if (check_int(r) == NULL) {
+            printf(".data\nft1:\t.float  %d\n", get_int_data(r));
+            printf(".text\nlwc1\t$f3, ft1\n");
+            printf("add.s\t$f1, $f2, $f3\n");
+        }
+    } 
+}
+
+
+
+void emit_eq(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    }// else if (get_node_type(l) == REAL_TYPE) { 
+    //     if (check_float(l) != NULL) {
+    //         printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
+    //     } else if (check_float(l) == NULL) {
+    //         rec_emit_code(l);
+    //         printf(".data\nft%d:\t.float\t%f\n", get_data(ast), popf());
+    //         printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast) + 1, get_data(ast));      
+    //     }
+    //     if (get_node_type(r) == REAL_TYPE) { 
+    //         if (check_float(r) != NULL)
+    //             printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));
+    //         else if (check_float(r) == NULL) {
+    //             rec_emit_code(r);
+    //             printf(".data\nft%d:\t.float\t%f\n", get_data(ast) + 1, popf());
+    //             printf(".text\nlwc1\t$f%d, ft%d\n", get_data(ast), get_data(ast) + 1);
+    //         }
+    //         printf("mul.s\t$f%d, $f%d, $f%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2);
+    //         printf("mov.s\t$f12, $f%d\n", get_data(ast));
+    //     }
+    // }
+    // if ((get_node_type(l) == INT_TYPE) && (get_node_type(r) == INT_TYPE)) {
+    //     printf("seq\t$t%d, $t%d, $t%d\n", get_data(ast), get_data(ast) + 1, get_data(ast) + 2); 
+    // }  
+}
+
+void emit_if(AST *ast) {
+    int size = get_child_count(ast);
+    if (size == 2) {
+        AST *l = get_child(ast, 0);
+        AST *r = get_child(ast, 1);
+        int addr_l, addr_r, addr;
+        addr_l = get_data(l);
+        addr_r = get_data(r);
+        if (get_kind(l) == EQ_NODE) {
+            rec_emit_code(l);
+            printf("beq\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        } else if (get_kind(l) == NE_NODE) {
+            rec_emit_code(l);
+            printf("bne\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        } else if (get_kind(l) == GE_NODE) {
+            rec_emit_code(l);
+            printf("bge\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        } else if (get_kind(l) == LT_NODE) {
+            rec_emit_code(l);
+            printf("blt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        } else if (get_kind(l) == GT_NODE) {
+            rec_emit_code(l);
+            printf("bgt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        } else if (get_kind(l) == LE_NODE) {
+            rec_emit_code(l);
+            printf("ble\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("else:\n");
+        }
+    } else if (size == 3) {
+        AST *l = get_child(ast, 0);
+        AST *r = get_child(ast, 1);
+        AST *r2 = get_child(ast, 2);
+        int addr_l, addr_r, addr_r2;
+        addr_l = get_data(l);
+        addr_r = get_data(r);
+        addr_r2 = get_data(r2);
+        if (get_kind(l) == EQ_NODE) {
+            rec_emit_code(l);
+            printf("beq\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        } else if (get_kind(l) == NE_NODE) {
+            rec_emit_code(l);
+            printf("bne\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        } else if (get_kind(l) == GE_NODE) {
+            rec_emit_code(l);
+            printf("bge\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        } else if (get_kind(l) == LT_NODE) {
+            rec_emit_code(l);
+            printf("blt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        } else if (get_kind(l) == GT_NODE) {
+            rec_emit_code(l);
+            printf("bgt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        } else if (get_kind(l) == LE_NODE) {
+            rec_emit_code(l);
+            printf("ble\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            rec_emit_code(r);
+            printf("jal\tout\nelse:\n");
+            rec_emit_code(r2);
+            printf("out:\n");
+        }
+    }  
+}
+
+void emit_neq(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
     }
-    return x;
 }
 
-int emit_var_decl(AST *ast) {
-    // Nothing to do here.
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_var_list(AST *ast) {
-    // Nothing to do here.
-    return -1;  // This is not an expression, hence no value to return.
-}
-
-int emit_var_use(AST *ast) {
-    int addr = get_data(ast);
-    int x;
-    if (get_node_type(ast) == REAL_TYPE) {
-        x = new_float_reg();
-        emit2(LDWf, x, addr);
-    } else {
-        x = new_int_reg();
-        emit2(LDWi, x, addr);
+void emit_le(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
     }
-    return x;
 }
 
-int emit_write(AST *ast) {
-    AST *expr = get_child(ast, 0);
-    int x = rec_emit_code(expr);
-    Type expr_type = get_node_type(expr);
-    switch(expr_type) {
-        case INT_TYPE:  emit2(CALL, 4, x);  break;
-        case REAL_TYPE: emit2(CALL, 5, x);  break;
-        case BOOL_TYPE: emit2(CALL, 6, x);  break;
-        case STR_TYPE:  emit2(CALL, 7, x);  break;
-        case NO_TYPE:
-        default:
-            fprintf(stderr, "Invalid type: %s!\n", get_text(expr_type));
-            exit(EXIT_FAILURE);
+void emit_ge(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
     }
-    return -1;  // This is not an expression, hence no value to return.
 }
 
-int emit_b2i(AST* ast) {
-    int x = rec_emit_code(get_child(ast, 0));
-    // Nothing else to do, a bool already is stored as an int.
-    return x;
+void emit_gt(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    }
 }
 
-int emit_b2r(AST* ast) {
-    int i = rec_emit_code(get_child(ast, 0));
-    int r = new_float_reg();
-    emit2(WIDf, r, i);
-    return r;
+// int emit_bool_val(AST *ast) {
+//     int x = new_int_reg();
+//     int c = get_data(ast);
+//     emit2(LDIi, x, c);
+//     return x;
+// }
+
+
+void emit_lt(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    if (get_node_type(l) == INT_TYPE) { 
+        if (check_int(l) != NULL)
+            printf(".text\nlw\t$t%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));  
+        else if (check_int(l) == NULL) {
+            rec_emit_code(l);
+            printf(".text\nli\t$t%d, %d\n", get_data(ast) + 1, popi());
+        }
+        if (get_node_type(r) == INT_TYPE) { 
+            if (check_int(r) != NULL)
+                printf("lw\t$t%d, %s\n", get_data(ast) + 2, get_name(vt, addr_r));  
+            else if (check_int(r) == NULL) {
+                rec_emit_code(r);
+                printf("li\t$t%d, %d\n", get_data(ast) + 2, popi());
+            }
+        }
+    }
 }
 
-int emit_b2s(AST* ast) {
-    int x = new_int_reg();
-    int y = rec_emit_code(get_child(ast, 0));
-    emit2(B2Ss, x, y);
-    return x;
-}
+// int emit_and(AST *ast){
+//     AST *l = get_child(ast, 0);
+//     AST *r = get_child(ast, 1);
+//     int y = rec_emit_code(l);
+//     int z = rec_emit_code(r);
+//     int x = new_int_reg();
+//     emit3(ANDAND, x, z, y);
 
-int emit_i2r(AST* ast) {
-    int i = rec_emit_code(get_child(ast, 0));
-    int r = new_float_reg();
-    emit2(WIDf, r, i);
-    return r;
-}
+//     return x;
+// }
 
-int emit_i2s(AST* ast) {
-    int x = new_int_reg();
-    int y = rec_emit_code(get_child(ast, 0));
-    emit2(I2Ss, x, y);
-    return x;
-}
+// int emit_or(AST *ast){
+//     AST *l = get_child(ast, 0);
+//     AST *r = get_child(ast, 1);
+//     int y = rec_emit_code(l);
+//     int z = rec_emit_code(r);
+//     int x = new_int_reg();
+//     emit3(OROR, x, z, y);
 
-int emit_r2s(AST* ast) {
-    int x = new_int_reg();
-    int y = rec_emit_code(get_child(ast, 0));
-    emit2(R2Ss, x, y);
-    return x;
-}
+//     return x;
+// }
+
+
+
+
+// int emit_pre_inc(AST *ast) {
+//     int x;
+//     int y = rec_emit_code(get_child(ast, 0));
+//     int addr = get_data(get_child(ast, 0));
+//     if (get_node_type(ast) == REAL_TYPE) {
+//         x = new_float_reg();
+//         emit2(INCf, x, y);
+//         emit2(STWf, addr, x);
+//     } else {
+//         x = new_int_reg();
+//         emit2(INCi, x, y);
+//         emit2(STWi, addr, x);
+//     }
+//     return x;
+// }
+
+// int emit_pre_dec(AST *ast) {
+//     int x;
+//     int y = rec_emit_code(get_child(ast, 0));
+//     int addr = get_data(get_child(ast, 0));
+//     if (get_node_type(ast) == REAL_TYPE) {
+//         x = new_float_reg();
+//         emit2(DECf, x, y);
+//         emit2(STWf, addr, x);
+//     } else {
+//         x = new_int_reg();
+//         emit2(DECi, x, y);
+//         emit2(STWi, addr, x);
+//     }
+//     return x;
+// }
+
+// int emit_repeat(AST *ast) {
+    
+//     int test_reg = rec_emit_code(get_child(ast, 1)); // Emit code for test.
+//     int begin_repeat = next_instr;
+//     emit2(BOFb, test_reg, begin_repeat - next_instr - 1);
+//     rec_emit_code(get_child(ast, 0)); // Emit code for body.
+//     return -1;  // This is not an expression, hence no value to return.
+// }
+
+
+
+
+
+// int emit_var_use(AST *ast) {
+//     int addr = get_data(ast);
+//     int x;
+//     if (get_node_type(ast) == REAL_TYPE) {
+//         x = new_float_reg();
+//         emit2(LDWf, x, addr);
+//     } else {
+//         x = new_int_reg();
+//         emit2(LDWi, x, addr);
+//     }
+//     return x;
+// }
 
 // ----------------------------------------------------------------------------
 
-int rec_emit_code(AST *ast) {
+void rec_emit_code(AST *ast) {
     switch(get_kind(ast)) {
-        case ASSIGN_NODE:	    return emit_assign(ast);      
-        case BLOCK_NODE:	    return emit_block(ast);       
-        case IF_NODE:			return emit_if(ast);          
-        case INT_VAL_NODE:		return emit_int_val(ast);     
-        case LT_NODE:			return emit_lt(ast);          
-        case GT_NODE:			return emit_gt(ast);          
-        case LE_NODE:			return emit_le(ast);          
-        case GE_NODE:			return emit_ge(ast);          
-        case EQ_NODE:			return emit_eq(ast);          
-        case NE_NODE:			return emit_neq(ast);          
-        case MINUS_NODE:		return emit_minus(ast);       
-        case OVER_NODE:			return emit_over(ast);        
-        case MOD_NODE:			return emit_mod(ast);         
-        case PLUS_NODE:			return emit_plus(ast);        
-        case AND_NODE:			return emit_and(ast);     
-        case OR_NODE:			return emit_or(ast);          
+        case ASSIGN_NODE:	     emit_assign(ast);              break;    
+        case BLOCK_NODE:	     emit_block(ast);               break;          
+        case INT_VAL_NODE:		 emit_int_val(ast);             break;    
+        case PLUS_NODE:			 emit_plus(ast);                break;    
+        case TIMES_NODE:		 emit_times(ast);               break;
+        case MINUS_NODE:		 emit_minus(ast);               break;
+        case OVER_NODE:			 emit_over(ast);                break;
+        case MOD_NODE:			 emit_mod(ast);                 break;
+        case PROGRAM_NODE:		 emit_program(ast);             break;     
+        case REAL_VAL_NODE:		 emit_real_val(ast);            break;    
+        case STR_VAL_NODE:		 emit_str_val(ast);             break;    
+        case VAR_DECL_NODE:		 emit_var_decl(ast);            break;    
+        case VAR_LIST_NODE:		 emit_var_list(ast);            break;    
+        case ARG_LIST_NODE:		 emit_arg_list(ast);            break;    
+        case EXPR_LIST_NODE:	 emit_expr_list(ast);           break;    
+        case STMT_LIST_NODE:	 emit_stmt_list(ast);           break;    
+        case FUNC_LIST_NODE:	 emit_func_list(ast);           break;    
+        case VAR_USE_NODE:		 emit_var_use(ast);             break;    
+        case INIT_LIST_NODE:	 emit_init_list(ast);           break;    
+        case B2I_NODE:			 emit_b2i(ast);                 break;    
+        case B2S_NODE:			 emit_b2s(ast);                 break;       
+        case I2S_NODE:			 emit_i2s(ast);                 break;    
+        case R2S_NODE:			 emit_r2s(ast);                 break;    
+        case PRINTF_NODE:        emit_printf(ast);              break;    
+        case IF_NODE:			 emit_if(ast);                  break; 
+        case LT_NODE:			 emit_lt(ast);                  break;
+        case GT_NODE:			 emit_gt(ast);                  break;
+        case LE_NODE:			 emit_le(ast);                  break;
+        case GE_NODE:			 emit_ge(ast);                  break;
+        case EQ_NODE:			 emit_eq(ast);                  break;      
+        case NE_NODE:			 emit_neq(ast);                 break;       
+         
+        // case REPEAT_NODE:		return emit_repeat(ast);
+        // case READ_NODE:			return emit_read(ast);  
+        // case AND_NODE:			return emit_and(ast);     
+        // case OR_NODE:			return emit_or(ast);          
         // case POST_INC_NODE:     return emit_post_inc(ast);  
-        case PRE_INC_NODE:		return emit_pre_inc(ast); 
+        // case PRE_INC_NODE:		return emit_pre_inc(ast); 
         // case POST_DEC_NODE:     return emit_post_dec(ast);  
-        case PRE_DEC_NODE:		return emit_pre_dec(ast); 
-        //case REF_NODE:			return emit_ref(ast);     
-        //case DEREF_NODE:		return emit_dref(ast);        
-        // case UPLUS_NODE:		return emit_uplus(ast);       
+        // case PRE_DEC_NODE:		return emit_pre_dec(ast); 
+        // case REF_NODE:			return emit_ref(ast);     
+        // case DEREF_NODE:		return emit_dref(ast);        
+        // case UPLUS_NODE:	    return emit_uplus(ast);       
         // case UMINUS_NODE:		return emit_uminus(ast);      
-        //case LNEG_NODE:			return emit_lneg(ast);    
-        case PRINTF_NODE:       return emit_printf(ast);      
-        case PROGRAM_NODE:		return emit_program(ast);     
-        case READ_NODE:			return emit_read(ast);        
-        case REAL_VAL_NODE:		return emit_real_val(ast);    
-        case REPEAT_NODE:		return emit_repeat(ast);      
-        case STR_VAL_NODE:		return emit_str_val(ast);     
-        case TIMES_NODE:		return emit_times(ast);       
-        case VAR_DECL_NODE:		return emit_var_decl(ast);    
-        case VAR_LIST_NODE:		return emit_var_list(ast);    
-        case ARG_LIST_NODE:		return emit_arg_list(ast);
-        case EXPR_LIST_NODE:	return emit_expr_list(ast);   
-        case STMT_LIST_NODE:	return emit_stmt_list(ast);   
-        case FUNC_LIST_NODE:	return emit_func_list(ast);   
-        case VAR_USE_NODE:		return emit_var_use(ast);     
-        case WRITE_NODE:		return emit_write(ast);       
-        case RETURN_NODE:		return emit_return(ast);      
-        case INIT_LIST_NODE:	return emit_init_list(ast);   
-        case B2I_NODE:			return emit_b2i(ast);         
-        case B2R_NODE:			return emit_b2r(ast);         
-        case B2S_NODE:			return emit_b2s(ast);         
-        case I2R_NODE:			return emit_i2r(ast);         
-        case I2S_NODE:			return emit_i2s(ast);         
-        case R2S_NODE:			return emit_r2s(ast);         
-
+        // case LNEG_NODE:			return emit_lneg(ast);      
+        case SCANF_NODE:         emit_scanf(ast);               break;
+        // case WRITE_NODE:		return emit_write(ast);       
+        case RETURN_NODE:		 emit_return(ast);              break;    
+        case B2R_NODE:			 emit_b2r(ast);                 break;    
+        case I2R_NODE:			 emit_i2r(ast);                 break;    
+                 
         default:
             fprintf(stderr, "Invalid kind: %s!\n", kind2str(get_kind(ast)));
             exit(EXIT_FAILURE);
@@ -813,11 +1195,11 @@ int rec_emit_code(AST *ast) {
 // ----------------------------------------------------------------------------
 
 void emit_code(AST *ast) {
-    next_instr = 0;
-    int_regs_count = 0;
-    float_regs_count = 0;
-    // dump_str_table();
+    // next_instr = 0;
+    // int_regs_count = 0;
+    // float_regs_count = 0;
+    init_stack();
+    init_mem();
     rec_emit_code(ast);
-    emit0(HALT);
-    dump_program();
+    // dump_program();
 }
