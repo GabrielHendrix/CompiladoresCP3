@@ -94,7 +94,7 @@ unary_expression:
 	| INC_OP unary_expression { $$ = new_subtree (PRE_INC_NODE, get_AST_type ($2), 1, $2); }
 	| DEC_OP unary_expression { $$ = new_subtree (PRE_DEC_NODE, get_AST_type ($2), 1, $2); }
 	| PLUS unary_expression { $$ = new_subtree (UPLUS_NODE, get_AST_type ($2), 1, $2); }
-	| MINUS unary_expression { $$ = new_subtree (UMINUS_NODE, get_AST_type ($2), 1, $2); }
+	| MINUS unary_expression { $$ = new_subtree (UMINUS_NODE, get_AST_type ($2), 1, $2); };
 	//| unary_operator { add_child ($1, $2); if (get_AST_type ($1) == NO_TYPE) set_AST_type ($1, get_AST_type ($2)); $$ = $1; };
 	// | SIZEOF unary_expression { $$ = $2; }
 	// | SIZEOF LPAR type_name RPAR { $$ = $2; };
@@ -117,22 +117,14 @@ cast_expression:
 
 multiplicative_expression:
 	  cast_expression { $$ = $1; }
-	| LPAR cast_expression RPAR { $$ = $2; }
 	| multiplicative_expression TIMES cast_expression { $$ = unify_bin_node($1, $3, TIMES_NODE, "*", unify_other_arith); }
 	| multiplicative_expression OVER cast_expression { $$ = unify_bin_node($1, $3, OVER_NODE, "/", unify_other_arith); }
 	| multiplicative_expression MOD cast_expression { $$ = unify_bin_node($1, $3, MOD_NODE, "%", unify_other_arith); };
-	| cast_expression  TIMES multiplicative_expression { $$ = unify_bin_node($1, $3, TIMES_NODE, "*", unify_other_arith); }
-	| cast_expression OVER multiplicative_expression { $$ = unify_bin_node($1, $3, OVER_NODE, "/", unify_other_arith); }
-	| cast_expression  MOD multiplicative_expression { $$ = unify_bin_node($1, $3, MOD_NODE, "%", unify_other_arith); };
 
 additive_expression:
 	  multiplicative_expression { $$ = $1; }
-	| LPAR additive_expression RPAR { $$ = $2; }
-	| LPAR multiplicative_expression RPAR { $$ = $2; }
 	| additive_expression PLUS multiplicative_expression { $$ = unify_bin_node($1, $3, PLUS_NODE, "+", unify_plus); }
 	| additive_expression MINUS multiplicative_expression { $$ = unify_bin_node($1, $3, MINUS_NODE, "-", unify_plus); };
-	| multiplicative_expression PLUS additive_expression { $$ = unify_bin_node($1, $3, PLUS_NODE, "+", unify_plus); }
-	| multiplicative_expression MINUS additive_expression { $$ = unify_bin_node($1, $3, MINUS_NODE, "-", unify_plus); };
 
 // Again, this project's "simplification" statement states that
 // bitwise operations shouldn't be implemented.
@@ -443,6 +435,19 @@ jump_statement:
 	//  RETURN SEMI				{ $$ = new_subtree (RETURN_NODE, NO_TYPE, 0); }
 	RETURN expression SEMI	{ { $$ = new_subtree (RETURN_NODE, NO_TYPE, 1, $1); }/*printf ("\tjump_statement2\t%s %d\n", kind2str (get_kind ($2)), get_int_data ($2)); $$ = new_subtree (RETURN_NODE, NO_TYPE, 1, $2);*/ };
 
+write_statement:
+  	WRITE LPAR assignment_expression RPAR SEMI { $$ = new_subtree(WRITE_NODE, NO_TYPE, 1, $3); }
+;
+
+printf_statement:
+	  PRINTF LPAR STR_VAL RPAR SEMI { $$ = new_subtree(PRINTF_NODE, NO_TYPE, 1, $3); }
+	| PRINTF LPAR STR_VAL COMMA assignment_expression RPAR SEMI { $$ = check_string ($3, $5); }
+;
+
+scanf_statement:
+	SCANF LPAR STR_VAL COMMA AMPER unary_expression RPAR SEMI{ $$ = new_subtree(SCANF_NODE, NO_TYPE, 2, $3, $6); }
+;
+
 root:
 	  translation_unit { root = new_subtree (PROGRAM_NODE, NO_TYPE, 1, $1); };
 
@@ -463,19 +468,6 @@ function_definition:
 	| declaration_specifier_list declarator compound_statement { $$ = $3; }
 	| declarator declaration_list compound_statement { $$ = $3; }
 	| declaration_specifier_list declarator declaration_list compound_statement { $$ = $4; };
-
-write_statement:
-  	WRITE LPAR assignment_expression RPAR SEMI { $$ = new_subtree(WRITE_NODE, NO_TYPE, 1, $3); }
-;
-
-printf_statement:
-	  PRINTF LPAR STR_VAL RPAR SEMI { $$ = new_subtree(PRINTF_NODE, NO_TYPE, 1, $3); }
-	| PRINTF LPAR STR_VAL COMMA assignment_expression RPAR SEMI { $$ = check_string ($3, $5); }
-;
-
-scanf_statement:
-	| SCANF LPAR STR_VAL COMMA AMPER unary_expression RPAR SEMI{ $$ = new_subtree(SCANF_NODE, NO_TYPE, 2, $3, $6); }
-;
 %%
 
 // ----------------------------------------------------------------------------

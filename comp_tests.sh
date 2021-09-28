@@ -9,8 +9,8 @@ EXE=./trabalho
 for subfolder in `ls $IN/`; do
     for infile in `ls $IN/$subfolder/*.c`; do
         base=$(basename $infile)
-        # outfile=$OUT/${base/.ezl/.out}
-        echo $infile
-        $EXE < $infile
+        # outfile=${base/.c/.}
+        echo $infile dots/${base/.c/.dot} asms/${base/.c/.asm}
+        $EXE <$infile 2>dots/${base/.c/.dot} 1>asms/${base/.c/.asm}
     done
 done
