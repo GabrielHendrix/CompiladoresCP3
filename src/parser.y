@@ -575,7 +575,7 @@ AST* check_if_then_else(AST *e, AST *b1, AST *b2) {
 }
 
 AST* check_repeat(AST *b, AST *e) {
-    return new_subtree(REPEAT_NODE, NO_TYPE, 2, b, e);
+    return new_subtree(REPEAT_NODE, NO_TYPE, 2, e, b);
 }
 
 AST* check_string(AST *x, AST *y){

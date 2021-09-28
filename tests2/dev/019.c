@@ -1,15 +1,9 @@
-
 int main ()
 {
-	while (1)	/* Um comando de loop */
+	int i, y;
+	
+	while (4>1 && 1>0)
 	{
-
+		i = 1;
 	}
-
-	if (1)		/* E um de if */
-	;
-	else
-	;
-
-	return 0;
 }
