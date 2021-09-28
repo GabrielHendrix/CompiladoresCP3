@@ -7,7 +7,10 @@ y:	.float	0.000000
 .data
 res:	.float	0.000000
 .data
-res:	.float	0.000000
+temp4:	.float	0.000000
+.text
+lwc1	$f0, temp4
+swc1	$f0, res
 .text
 li	$v0, 6
 syscall

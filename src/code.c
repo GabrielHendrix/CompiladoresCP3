@@ -203,8 +203,20 @@ void emit_assign(AST *ast) {
     if (var_type == REAL_TYPE && (get_kind(r) != PLUS_NODE) && 
        (get_kind(r) != MOD_NODE) && (get_kind(r) != TIMES_NODE)
        && (get_kind(r) != OVER_NODE) && (get_kind(r) != MINUS_NODE)) {
-        printf(".data\n%s:\t.float\t", get_name(vt, addr));
-        printf("%f\n", popf());
+
+        if (get_child_count(get_child(ast,0)) == 1) {
+            if (get_kind(get_child(get_child(ast,0),0)) == EXPR_LIST_NODE) {
+                rec_emit_code(get_child(get_child(ast, 0),0));
+                index = popi();
+                printf(".data\ntemp%d:\t.float\t%f\n", get_data(r) + 4, popf());
+                printf(".text\nlwc1\t$f0, temp%d\n", get_data(r) + 4);
+                printf("swc1\t$f0, %s + %d\n", get_name(vt, addr), index * 4);
+            }
+        } else {
+            printf(".data\ntemp%d:\t.float\t%f\n", get_data(r) + 4, popf());
+            printf(".text\nlwc1\t$f0, temp%d\n", get_data(r) + 4);
+            printf("swc1\t$f0, %s\n", get_name(vt, addr));
+        }
     } else if (var_type == INT_TYPE && (get_kind(r) != PLUS_NODE) && 
        (get_kind(r) != MOD_NODE) && (get_kind(r) != TIMES_NODE)
        && (get_kind(r) != OVER_NODE) && (get_kind(r) != MINUS_NODE)) {
