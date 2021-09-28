@@ -548,10 +548,10 @@ void emit_over(AST *ast) {
         if (check_float(l) != NULL) {
             if (get_child_count(l) == 1) { 
                 if (get_kind(get_child(l,0)) == EXPR_LIST_NODE) {
-                    emit_def_vet(l, vt, addr_l, REAL_TYPE, get_data(ast) + 2);
+                    emit_def_vet(l, vt, addr_l, REAL_TYPE, get_data(ast) + 1);
                 }
             } else {
-                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 2, get_name(vt, addr_l));
+                printf(".text\nlwc1\t$f%d, %s\n", get_data(ast) + 1, get_name(vt, addr_l));
             }
         } else if (check_float(l) == NULL) {
             rec_emit_code(l);

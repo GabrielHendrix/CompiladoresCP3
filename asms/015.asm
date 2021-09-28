@@ -26,7 +26,7 @@ li	$v0, 6
 syscall
 swc1	$f0, y
 .text
-lwc1	$f2, x
+lwc1	$f1, x
 .text
 lwc1	$f2, y
 div.s	$f0, $f1, $f2
