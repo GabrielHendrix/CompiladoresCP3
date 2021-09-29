@@ -1,3 +1,5 @@
+/* SUBTRAÇÃO (FLOAT) */
+
 void main()
 {
 	float x, y, res;

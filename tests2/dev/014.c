@@ -1,3 +1,5 @@
+/* DIVISÃO NÚMEROS INTEIROS */
+
 void main()
 {
 	int x, y, res;

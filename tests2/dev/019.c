@@ -1,9 +1,17 @@
+/* PREENCHIMENTO DE VETOR E VISUALIZAÇÃO DO MESMO*/
+
 int main ()
 {
-	int i, y;
+	int vet[3];
+
+	vet[0] = 4;
+	vet[1] = 8;
+	vet[2] = 16;
 	
-	while (4>1 && 1>0)
-	{
-		i = 1;
-	}
+	printf("%d", vet[0]);
+	printf("\"n");
+	printf("%d", vet[1]);
+	printf(" \"n");
+	printf("%d", vet[2]);	
+	printf("  \"n");
 }

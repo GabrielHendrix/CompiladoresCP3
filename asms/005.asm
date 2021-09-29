@@ -21,9 +21,9 @@ sw	$v0, y
 .text
 lw	$t1, x
 lw	$t2, y
-bgt	$t1, $t2, if
-jal	else
-if:
+bgt	$t1, $t2, if1
+jal	else1
+if1:
 .data
 msg2:	.asciiz	"x = "
 .text
@@ -46,8 +46,8 @@ lw	$t0, y
 move	$a0, $t0
 li	$v0, 1
 syscall
-jal	out
-else:
+jal	out1
+else1:
 .data
 msg4:	.asciiz	"x =  "
 .text
@@ -70,4 +70,4 @@ lw	$t0, y
 move	$a0, $t0
 li	$v0, 1
 syscall
-out:
+out1:

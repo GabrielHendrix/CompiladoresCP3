@@ -1,3 +1,4 @@
+/* SUBTRAÇÃO DE INTEIROS */
 void main()
 {
 	int x, y, res;

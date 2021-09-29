@@ -1,3 +1,5 @@
+/* COMPARAÇÃO N1 <= N2 */
+
 int main ()
 {
 	int x, y;

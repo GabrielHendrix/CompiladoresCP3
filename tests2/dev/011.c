@@ -1,3 +1,5 @@
+/* MULTIPLICAÇÃO (FLOAT) */
+
 void main()
 {
 	float x, y, res;

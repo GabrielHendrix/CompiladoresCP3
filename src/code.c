@@ -228,8 +228,8 @@ void emit_assign(AST *ast) {
                 printf("sw\t$t0, %s + %d\n", get_name(vt, addr), index * 4);
             }
         } else {
-            printf(".text\nli\t$t%d, %d\n", get_data(ast), popi());
-            printf("sw\t$t%d, %s\n", get_data(ast), get_name(vt, addr));
+            printf(".text\nli\t$t0, %d\n", popi());
+            printf("sw\t$t0, %s\n", get_name(vt, addr));
         }
 
     // } else if  (var_type == STR_TYPE) { // All other types, include ints, bools and strs.
@@ -846,7 +846,13 @@ void emit_printf(AST *ast)
                 if (expr_type2 == INT_TYPE)
                 {
                     if (check_int(expr2) != NULL) {
-                        printf(".text\nlw\t$t0, %s\n", get_name(vt, addr_l)); 
+                        if (get_child_count(expr2) == 1) {
+                            if (get_kind(get_child(expr2,0)) == EXPR_LIST_NODE) {
+                                emit_def_vet(expr2, vt, addr_l, INT_TYPE, get_data(ast));
+                            } 
+                        } else {
+                            printf(".text\nlw\t$t0, %s\n", get_name(vt, addr_l)); 
+                        }
                     }
                     else if (check_int(expr2) == NULL) {
                         rec_emit_code(expr2);
@@ -1047,6 +1053,8 @@ void emit_eq(AST *ast) {
 }
 
 void emit_repeat(AST *ast) {
+    new_int_reg();
+    int reg = int_regs_count;
     int size = get_child_count(ast);
     if (size == 2) {
         AST *l = get_child(ast, 0);
@@ -1055,54 +1063,61 @@ void emit_repeat(AST *ast) {
         addr_l = get_data(l);
         addr_r = get_data(r);
         if (get_kind(l) == EQ_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("beq\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("beq\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         } else if (get_kind(l) == NE_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("bne\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bne\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         } else if (get_kind(l) == GE_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("bge\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bge\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         } else if (get_kind(l) == LT_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("blt\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("blt\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         } else if (get_kind(l) == GT_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("bgt\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bgt\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         } else if (get_kind(l) == LE_NODE) {
-            printf("loop:\n");
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
-            printf("ble\t$t%d, $t%d, while\njal\texit\nwhile:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("ble\t$t%d, $t%d, while%d\njal\texit%d\nwhile%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tloop\n");
-            printf("exit:\n");
-        } else if (get_kind(l) == AND_NODE) {
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
+        } else if (get_kind(l) == AND_NODE || get_kind(l) == OR_NODE) {
+            printf("loop%d:\n", reg);
             rec_emit_code(l);
+            printf("beq\t$t%d, 1, while%d\njal\texit%d\nwhile%d:\n", get_data(ast), reg, reg, reg);
+            rec_emit_code(r);
+            printf("jal\tloop%d\n", reg);
+            printf("exit%d:\n", reg);
         }
     } 
 }
 
 void emit_if(AST *ast) {
+    new_int_reg();
+    int reg = int_regs_count;
     int size = get_child_count(ast);
     if (size == 2) {
         AST *l = get_child(ast, 0);
@@ -1112,34 +1127,39 @@ void emit_if(AST *ast) {
         addr_r = get_data(r);
         if (get_kind(l) == EQ_NODE) {
             rec_emit_code(l);
-            printf("beq\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("beq\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
         } else if (get_kind(l) == NE_NODE) {
             rec_emit_code(l);
-            printf("bne\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bne\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
         } else if (get_kind(l) == GE_NODE) {
             rec_emit_code(l);
-            printf("bge\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bge\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
         } else if (get_kind(l) == LT_NODE) {
             rec_emit_code(l);
-            printf("blt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("blt\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
         } else if (get_kind(l) == GT_NODE) {
             rec_emit_code(l);
-            printf("bgt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bgt\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
         } else if (get_kind(l) == LE_NODE) {
             rec_emit_code(l);
-            printf("ble\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("ble\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("else:\n");
+            printf("else%d:\n", reg);
+        } else if (get_kind(l) == AND_NODE || get_kind(l) == OR_NODE) {
+            rec_emit_code(l);
+            printf("beq\t$t%d, 1, if%d\njal\telse%d\nif%d:\n", get_data(ast), reg, reg, reg);
+            rec_emit_code(r);
+            printf("else%d:\n", reg);
         }
     } else if (size == 3) {
         AST *l = get_child(ast, 0);
@@ -1151,46 +1171,53 @@ void emit_if(AST *ast) {
         addr_r2 = get_data(r2);
         if (get_kind(l) == EQ_NODE) {
             rec_emit_code(l);
-            printf("beq\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("beq\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
         } else if (get_kind(l) == NE_NODE) {
             rec_emit_code(l);
-            printf("bne\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bne\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
         } else if (get_kind(l) == GE_NODE) {
             rec_emit_code(l);
-            printf("bge\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bge\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
         } else if (get_kind(l) == LT_NODE) {
             rec_emit_code(l);
-            printf("blt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("blt\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
         } else if (get_kind(l) == GT_NODE) {
             rec_emit_code(l);
-            printf("bgt\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("bgt\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
         } else if (get_kind(l) == LE_NODE) {
             rec_emit_code(l);
-            printf("ble\t$t%d, $t%d, if\njal\telse\nif:\n", get_data(ast) + 1, get_data(ast) + 2);
+            printf("ble\t$t%d, $t%d, if%d\njal\telse%d\nif%d:\n", get_data(ast) + 1, get_data(ast) + 2, reg, reg, reg);
             rec_emit_code(r);
-            printf("jal\tout\nelse:\n");
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
             rec_emit_code(r2);
-            printf("out:\n");
+            printf("out%d:\n", reg);
+        } else if (get_kind(l) == AND_NODE || get_kind(l) == OR_NODE) {
+            rec_emit_code(l);
+            printf("beq\t$t%d, 1, if%d\njal\telse%d\nif%d:\n", get_data(ast), reg, reg, reg);
+            rec_emit_code(r);
+            printf("jal\tout%d\nelse%d:\n", reg, reg);
+            rec_emit_code(r2);
+            printf("out%d:\n", reg);
         }
     }  
 }
@@ -1291,14 +1318,6 @@ void emit_gt(AST *ast) {
     }
 }
 
-// int emit_bool_val(AST *ast) {
-//     int x = new_int_reg();
-//     int c = get_data(ast);
-//     emit2(LDIi, x, c);
-//     return x;
-// }
-
-
 void emit_lt(AST *ast) {
     AST *l = get_child(ast, 0);
     AST *r = get_child(ast, 1);
@@ -1323,15 +1342,48 @@ void emit_lt(AST *ast) {
     }
 }
 
-void emit_and(AST *ast){
+void emit_and(AST *ast) {
     AST *l = get_child(ast, 0);
     AST *r = get_child(ast, 1);
     int addr_l, addr_r;
     addr_l = get_data(l);
     addr_r = get_data(r);
     rec_emit_code(l);
+    printf(".text\n");
+    emit_logical(l, get_data(ast) + 3);
     rec_emit_code(r);
+    emit_logical(r, get_data(ast) + 4);
+    printf("and\t$t%d, $t%d, $t%d\n", get_data(ast), get_data(ast) + 3, get_data(ast) + 4);
+}
 
+void emit_or(AST *ast) {
+    AST *l = get_child(ast, 0);
+    AST *r = get_child(ast, 1);
+    int addr_l, addr_r;
+    addr_l = get_data(l);
+    addr_r = get_data(r);
+    rec_emit_code(l);
+    printf(".text\n");
+    emit_logical(l, get_data(ast) + 3);
+    rec_emit_code(r);
+    emit_logical(r, get_data(ast) + 4);
+    printf("or\t$t%d, $t%d, $t%d\n", get_data(ast), get_data(ast) + 3, get_data(ast) + 4);
+}
+
+void emit_logical(AST *ast, int num) {
+    if (get_kind(ast) == EQ_NODE) {
+        printf("seq\t$t%d, $t1, $t2\n", num);
+    } else if (get_kind(ast) == NE_NODE) {  
+        printf("sne\t$t%d, $t1, $t2\n", num);
+    } else if (get_kind(ast) == GE_NODE) {
+        printf("sge\t$t%d, $t1, $t2\n", num);
+    } else if (get_kind(ast) == LT_NODE) {
+        printf("slt\t$t%d, $t1, $t2\n", num);
+    } else if (get_kind(ast) == GT_NODE) {
+        printf("sgt\t$t%d, $t1, $t2\n", num);
+    } else if (get_kind(ast) == LE_NODE) {
+        printf("sle\t$t%d, $t1, $t2\n", num);
+    }
 }
 
 // int emit_or(AST *ast){
@@ -1429,9 +1481,12 @@ void rec_emit_code(AST *ast) {
         case EQ_NODE:			 emit_eq(ast);                  break;      
         case NE_NODE:			 emit_neq(ast);                 break;     
         case REPEAT_NODE:		 emit_repeat(ast);              break;
-        // case READ_NODE:			return emit_read(ast);  
         case AND_NODE:			 emit_and(ast);                 break;
-        // case OR_NODE:			return emit_or(ast);          
+        case OR_NODE:			 emit_or(ast);                  break; 
+        case SCANF_NODE:         emit_scanf(ast);               break;     
+        case RETURN_NODE:		 emit_return(ast);              break;    
+        case B2R_NODE:			 emit_b2r(ast);                 break;    
+        case I2R_NODE:			 emit_i2r(ast);                 break;      
         // case POST_INC_NODE:     return emit_post_inc(ast);  
         // case PRE_INC_NODE:		return emit_pre_inc(ast); 
         // case POST_DEC_NODE:     return emit_post_dec(ast);  
@@ -1440,12 +1495,7 @@ void rec_emit_code(AST *ast) {
         // case DEREF_NODE:		return emit_dref(ast);        
         // case UPLUS_NODE:	    return emit_uplus(ast);       
         // case UMINUS_NODE:		return emit_uminus(ast);      
-        // case LNEG_NODE:			return emit_lneg(ast);      
-        case SCANF_NODE:         emit_scanf(ast);               break;
-        // case WRITE_NODE:		return emit_write(ast);       
-        case RETURN_NODE:		 emit_return(ast);              break;    
-        case B2R_NODE:			 emit_b2r(ast);                 break;    
-        case I2R_NODE:			 emit_i2r(ast);                 break;    
+        // case LNEG_NODE:			return emit_lneg(ast);         
                  
         default:
             fprintf(stderr, "Invalid kind: %s!\n", kind2str(get_kind(ast)));
@@ -1457,7 +1507,7 @@ void rec_emit_code(AST *ast) {
 
 void emit_code(AST *ast) {
     // next_instr = 0;
-    // int_regs_count = 0;
+    int_regs_count = 0;
     // float_regs_count = 0;
     init_stack();
     init_mem();
